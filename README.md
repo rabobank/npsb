@@ -17,14 +17,14 @@ The configuration for the broker consists of the following environment variables
 Describe the instance create parameters and the bind parameters here.
 
 Instance create parameters:
-* **type** - This can be either "source" or "target", indicating the "direction" of the policy. This is a required parameter.
-* **name** - The logical name to assign to the instance, only applicable for source instance. This name can be queried later to get a list of all source policies that can be used by type=target instances. This is a required parameter for type=source instances.
-* **description** - The description of the instance, only applicable for source instances. This description can be queried later to get a list of all source policies that can be used by type=target instances. This is a required parameter for type=source instances.
+* **type** - This can be either "source" or "destination", indicating the "direction" of the policy. This is a required parameter.
+* **name** - The logical name to assign to the instance, only applicable for source instance. This name can be queried later to get a list of all source policies that can be used by type=destination instances. This is a required parameter for type=source instances.
+* **description** - The description of the instance, only applicable for source instances. This description can be queried later to get a list of all source policies that can be used by type=destination instances. This is a required parameter for type=source instances.
 * **scope** - Can be either local or global. Local scope means only visible to the org/space where the policy is created, global means visible to all orgs/spaces. This is a required parameter for type=source instances.
-* **source** - The name of the source service instance that should be linked to this instance, only applicable for target instances. This is a required parameter. This is a required parameter for type=target instances.
+* **source** - The name of the source service instance that should be linked to this instance, only applicable for destination instances. This is a required parameter. This is a required parameter for type=destination instances.
 
 Instance bind parameters:
-* **port** - The port to use for the network policy (i.e. the port the application listens on). This is a optional parameter for type=target, default is 8080.
+* **port** - The port to use for the network policy (i.e. the port the application listens on). This is a optional parameter for type=destination, default is 8080.
 
 ## Deploying/installing the broker
 

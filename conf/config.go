@@ -39,7 +39,7 @@ var (
 	CfClient      *client.Client
 	CfConfig      *config.Config
 	CfCtx         = context.Background()
-	AllLabelNames = []string{"rabobank.com/npsb.type", "rabobank.com/npbs.source.name", "rabobank.com/npsb.source.description", "rabobank.com/npsb.source.scope", "rabobank.com/npsb.target.source", "rabobank.com/npsb.target.port"}
+	AllLabelNames = []string{LabelNameType, LabelNameName, LabelNameDesc, LabelNameScope, LabelNameSource, LabelNamePort}
 )
 
 const (
@@ -48,8 +48,8 @@ const (
 	LabelNameName   = "rabobank.com/npbs.source.name"
 	LabelNameDesc   = "rabobank.com/npsb.source.description"
 	LabelNameScope  = "rabobank.com/npsb.source.scope"
-	LabelNameSource = "rabobank.com/npsb.target.source"
-	LabelNamePort   = "rabobank.com/npsb.target.port"
+	LabelNameSource = "rabobank.com/npsb.dest.source"
+	LabelNamePort   = "rabobank.com/npsb.dest.port"
 )
 
 // EnvironmentComplete - Check for required environment variables and exit if not all are there.

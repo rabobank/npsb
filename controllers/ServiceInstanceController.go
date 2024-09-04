@@ -105,8 +105,8 @@ func validateInstanceParameters(serviceInstance model.ServiceInstance) (serviceI
 	if serviceInstanceParms.Type == "" {
 		return serviceInstanceParms, fmt.Errorf("parameter \"type\" is missing")
 	}
-	if serviceInstanceParms.Type != "source" && serviceInstanceParms.Type != "target" {
-		return serviceInstanceParms, fmt.Errorf("parameter \"type\" is invalid, should be \"source\" or \"target\"")
+	if serviceInstanceParms.Type != "source" && serviceInstanceParms.Type != "destination" {
+		return serviceInstanceParms, fmt.Errorf("parameter \"type\" is invalid, should be \"source\" or \"destination\"")
 	}
 	if serviceInstanceParms.Type == "source" {
 		if serviceInstanceParms.Name == "" {
@@ -128,7 +128,7 @@ func validateInstanceParameters(serviceInstance model.ServiceInstance) (serviceI
 			return serviceInstanceParms, fmt.Errorf("parameter \"scope\" is missing or invalid, should be \"global\" or \"local\"")
 		}
 	}
-	if serviceInstanceParms.Type == "target" {
+	if serviceInstanceParms.Type == "destination" {
 		if serviceInstanceParms.Source == "" {
 			return serviceInstanceParms, fmt.Errorf("parameter \"source\" is missing")
 		}
