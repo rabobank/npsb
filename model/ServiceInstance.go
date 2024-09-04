@@ -25,9 +25,9 @@ type DeleteServiceInstanceResponse struct {
 }
 
 type ServiceInstanceParameters struct {
-	Type        string `json:"type"`        // source or target
-	Name        string `json:"name"`        // only valid for type=source
-	Description string `json:"description"` // only valid for type=source
-	Scope       string `json:"scope"`       // only valid for type=source
-	Source      string `json:"source"`      // only valid for type=target
+	Type        string `json:"type"`                  // source or target
+	Name        string `json:"name,omitempty"`        // only valid for type=source
+	Description string `json:"description,omitempty"` // only valid for type=source
+	Scope       string `json:"scope,omitempty"`       // only valid for type=source
+	Source      string `json:"source,omitempty"`      // only valid for type=target
 }

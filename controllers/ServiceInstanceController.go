@@ -24,7 +24,6 @@ func Catalog(w http.ResponseWriter, r *http.Request) {
 func CreateOrUpdateServiceInstance(w http.ResponseWriter, r *http.Request) {
 	var err error
 	serviceInstanceId := mux.Vars(r)["service_instance_guid"]
-	fmt.Printf("create/update service instance for %s...\n", serviceInstanceId)
 	var serviceInstance model.ServiceInstance
 	err = util.ProvisionObjectFromRequest(r, &serviceInstance)
 	if err != nil {
@@ -38,6 +37,7 @@ func CreateOrUpdateServiceInstance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	allLabelNames := []string{"rabobank.com/npsb.type", "rabobank.com/npbs.source.name", "rabobank.com/npsb.source.description", "rabobank.com/npsb.source.scope", "rabobank.com/npsb.target.source"}
 	labels := make(map[string]*string)
 	labels["rabobank.com/npsb.type"] = &serviceInstanceParms.Type
 	labels["rabobank.com/npbs.source.name"] = &serviceInstanceParms.Name
@@ -49,13 +49,17 @@ func CreateOrUpdateServiceInstance(w http.ResponseWriter, r *http.Request) {
 	serviceInstanceUpdate := resource.ServiceInstanceManagedUpdate{Metadata: &resource.Metadata{Labels: labels}}
 
 	go func() {
-		//instanceOperations[serviceInstanceId] = model.StatusInProgress
 		time.Sleep(3 * time.Second)
 		if _, si, err := conf.CfClient.ServiceInstances.UpdateManaged(conf.CfCtx, serviceInstanceId, &serviceInstanceUpdate); err != nil {
 			fmt.Printf("failed to update service instance %s: %s\n", serviceInstanceId, err)
 		} else {
-			//instanceOperations[serviceInstanceId] = model.StatusSucceeded
-			fmt.Printf("service instance %s (%s) updated with labels %v\n", serviceInstanceId, si.Name, si.Metadata.Labels)
+			labelsToPrint := ""
+			for _, labelName := range allLabelNames {
+				if labelValue, found := si.Metadata.Labels[labelName]; found && labelValue != nil && *labelValue != "" {
+					labelsToPrint = fmt.Sprintf("%s %s=%s", labelsToPrint, labelName, *labelValue)
+				}
+			}
+			fmt.Printf("service instance %s (%s) updated with labels %s\n", serviceInstanceId, si.Name, labelsToPrint)
 		}
 	}()
 
@@ -67,7 +71,6 @@ func CreateOrUpdateServiceInstance(w http.ResponseWriter, r *http.Request) {
 
 func DeleteServiceInstance(w http.ResponseWriter, r *http.Request) {
 	serviceInstanceId := mux.Vars(r)["service_instance_guid"]
-	fmt.Printf("delete service instance %s...\n", serviceInstanceId)
 	response := model.DeleteServiceInstanceResponse{Result: fmt.Sprintf("Service instance %s deleted", serviceInstanceId)}
 	util.WriteHttpResponse(w, http.StatusOK, response)
 }

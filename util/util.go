@@ -69,7 +69,9 @@ func WriteHttpResponse(w http.ResponseWriter, code int, object interface{}) {
 
 	w.WriteHeader(code)
 	_, _ = fmt.Fprintf(w, string(data))
-	fmt.Printf("response: code:%d, body: %s\n", code, string(data))
+	if conf.Debug {
+		fmt.Printf("response: code:%d, body: %s\n", code, string(data))
+	}
 }
 
 // BasicAuth validate if user/pass in the http request match the configured service broker user/pass
