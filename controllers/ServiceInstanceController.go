@@ -32,7 +32,7 @@ func CreateOrUpdateServiceInstance(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var serviceInstanceParms model.ServiceInstanceParameters
-	if serviceInstanceParms, err = validateParameters(serviceInstance); err != nil {
+	if serviceInstanceParms, err = validateInstanceParameters(serviceInstance); err != nil {
 		util.WriteHttpResponse(w, http.StatusBadRequest, model.BrokerError{Error: "FAILED", Description: err.Error(), InstanceUsable: false, UpdateRepeatable: false})
 		return
 	}
@@ -93,7 +93,7 @@ func DeleteServiceInstance(w http.ResponseWriter, r *http.Request) {
 //	}
 //}
 
-func validateParameters(serviceInstance model.ServiceInstance) (serviceInstanceParms model.ServiceInstanceParameters, err error) {
+func validateInstanceParameters(serviceInstance model.ServiceInstance) (serviceInstanceParms model.ServiceInstanceParameters, err error) {
 	parameterValueRegex := regexp.MustCompile("^[a-zA-Z0-9._-]{1,64}$")
 	if serviceInstance.Parameters == nil {
 		return serviceInstanceParms, fmt.Errorf("parameters are missing")
