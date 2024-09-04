@@ -20,7 +20,6 @@ var (
 	debugStr           = os.Getenv("DEBUG")
 	Debug              = false
 	httpTimeoutStr     = os.Getenv("HTTP_TIMEOUT")
-	HttpTimeout        int
 	HttpTimeoutDefault = 10
 	ClientId           = os.Getenv("CLIENT_ID")
 	ClientSecret       string // will be resolved from config in credhub path CredsPath
@@ -64,16 +63,6 @@ func EnvironmentComplete() {
 	envComplete := true
 	if debugStr == "true" {
 		Debug = true
-	}
-	if httpTimeoutStr == "" {
-		HttpTimeout = HttpTimeoutDefault
-	} else {
-		var err error
-		HttpTimeout, err = strconv.Atoi(httpTimeoutStr)
-		if err != nil {
-			fmt.Printf("failed reading envvar HTTP_TIMEOUT, err: %s\n", err)
-			envComplete = false
-		}
 	}
 	if CredhubURL == "" {
 		CredhubURL = "https://credhub.service.cf.internal:8844"
