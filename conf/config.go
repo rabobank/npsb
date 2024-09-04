@@ -17,13 +17,11 @@ import (
 
 var (
 	//  NPSB  :  Network Policy Service Broker
-	debugStr           = os.Getenv("DEBUG")
-	Debug              = false
-	httpTimeoutStr     = os.Getenv("HTTP_TIMEOUT")
-	HttpTimeoutDefault = 10
-	ClientId           = os.Getenv("CLIENT_ID")
-	ClientSecret       string // will be resolved from config in credhub path CredsPath
-	CredhubURL         = os.Getenv("CREDHUB_URL")
+	debugStr     = os.Getenv("DEBUG")
+	Debug        = false
+	ClientId     = os.Getenv("CLIENT_ID")
+	ClientSecret string // will be resolved from config in credhub path CredsPath
+	CredhubURL   = os.Getenv("CREDHUB_URL")
 
 	Catalog    model.Catalog
 	ListenPort int
