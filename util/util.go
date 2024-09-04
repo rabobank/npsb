@@ -141,14 +141,14 @@ func ResolveCredhubCredentials() {
 	if err != nil {
 		log.Fatal("failed to parse the keypair from the app-container", err)
 	}
-	// Create a HTTPS client and supply the (created CA pool and) certificate
-	// client := &http.Client{Transport: &http.Transport{TLSClientConfig: &tls.Config{RootCAs: caCertPool, Certificates: []tls.Certificate{cert}}}}
-	client := &http.Client{Transport: &http.Transport{TLSClientConfig: &tls.Config{Certificates: []tls.Certificate{cert}, InsecureSkipVerify: conf.SkipSslValidation}}}
+	// Create a HTTPS credhubClient and supply the (created CA pool and) certificate
+	// credhubClient := &http.Client{Transport: &http.Transport{TLSClientConfig: &tls.Config{RootCAs: caCertPool, Certificates: []tls.Certificate{cert}}}}
+	credhubClient := &http.Client{Transport: &http.Transport{TLSClientConfig: &tls.Config{Certificates: []tls.Certificate{cert}, InsecureSkipVerify: conf.SkipSslValidation}}}
 
 	// Do the actual mTLS http request
 	path := fmt.Sprintf("/api/v1/data?name=%s&current=true", conf.CredsPath)
 	fmt.Printf("trying to get credentials from %s ...\n", conf.CredhubURL+path)
-	resp, err := client.Get(conf.CredhubURL + path)
+	resp, err := credhubClient.Get(conf.CredhubURL + path)
 	if err != nil {
 		fmt.Printf("Failed to read the credentials from path %s in credhub: %s\n", conf.CredsPath, err)
 		os.Exit(8)

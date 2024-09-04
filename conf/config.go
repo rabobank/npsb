@@ -39,12 +39,20 @@ var (
 	SkipSslValidation    bool
 	CredsPath            = os.Getenv("CREDS_PATH") // something like /brokers/npsb/credentials
 
-	CfClient *client.Client
-	CfConfig *config.Config
-	CfCtx    = context.Background()
+	CfClient      *client.Client
+	CfConfig      *config.Config
+	CfCtx         = context.Background()
+	AllLabelNames = []string{"rabobank.com/npsb.type", "rabobank.com/npbs.source.name", "rabobank.com/npsb.source.description", "rabobank.com/npsb.source.scope", "rabobank.com/npsb.target.source"}
 )
 
-const BasicAuthRealm = "NPSB Network Policy Service Broker"
+const (
+	BasicAuthRealm  = "NPSB Network Policy Service Broker"
+	LabelNameType   = "rabobank.com/npsb.type"
+	LabelNameName   = "rabobank.com/npbs.source.name"
+	LabelNameDesc   = "rabobank.com/npsb.source.description"
+	LabelNameScope  = "rabobank.com/npsb.source.scope"
+	LabelNameSource = "rabobank.com/npsb.target.source"
+)
 
 // EnvironmentComplete - Check for required environment variables and exit if not all are there.
 func EnvironmentComplete() {

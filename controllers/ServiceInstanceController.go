@@ -37,13 +37,12 @@ func CreateOrUpdateServiceInstance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	allLabelNames := []string{"rabobank.com/npsb.type", "rabobank.com/npbs.source.name", "rabobank.com/npsb.source.description", "rabobank.com/npsb.source.scope", "rabobank.com/npsb.target.source"}
 	labels := make(map[string]*string)
-	labels["rabobank.com/npsb.type"] = &serviceInstanceParms.Type
-	labels["rabobank.com/npbs.source.name"] = &serviceInstanceParms.Name
-	labels["rabobank.com/npsb.source.description"] = &serviceInstanceParms.Description
-	labels["rabobank.com/npsb.source.scope"] = &serviceInstanceParms.Scope
-	labels["rabobank.com/npsb.target.source"] = &serviceInstanceParms.Source
+	labels[conf.LabelNameType] = &serviceInstanceParms.Type
+	labels[conf.LabelNameName] = &serviceInstanceParms.Name
+	labels[conf.LabelNameDesc] = &serviceInstanceParms.Description
+	labels[conf.LabelNameScope] = &serviceInstanceParms.Scope
+	labels[conf.LabelNameSource] = &serviceInstanceParms.Source
 	metadata := resource.Metadata{Labels: labels}
 
 	serviceInstanceUpdate := resource.ServiceInstanceManagedUpdate{Metadata: &resource.Metadata{Labels: labels}}
@@ -54,7 +53,7 @@ func CreateOrUpdateServiceInstance(w http.ResponseWriter, r *http.Request) {
 			fmt.Printf("failed to update service instance %s: %s\n", serviceInstanceId, err)
 		} else {
 			labelsToPrint := ""
-			for _, labelName := range allLabelNames {
+			for _, labelName := range conf.AllLabelNames {
 				if labelValue, found := si.Metadata.Labels[labelName]; found && labelValue != nil && *labelValue != "" {
 					labelsToPrint = fmt.Sprintf("%s %s=%s", labelsToPrint, labelName, *labelValue)
 				}
