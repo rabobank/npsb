@@ -103,37 +103,37 @@ func validateInstanceParameters(serviceInstance model.ServiceInstance) (serviceI
 		return serviceInstanceParms, fmt.Errorf("failed to unmarshal parameters: %s", err)
 	}
 	if serviceInstanceParms.Type == "" {
-		return serviceInstanceParms, fmt.Errorf("parameter \"type\" is missing")
+		return serviceInstanceParms, fmt.Errorf("parameter \"%s\" is missing", conf.LabelNameType)
 	}
-	if serviceInstanceParms.Type != "source" && serviceInstanceParms.Type != "destination" {
-		return serviceInstanceParms, fmt.Errorf("parameter \"type\" is invalid, should be \"source\" or \"destination\"")
+	if serviceInstanceParms.Type != conf.LabelValueTypeSrc && serviceInstanceParms.Type != conf.LabelValueTypeDest {
+		return serviceInstanceParms, fmt.Errorf("parameter \"%s\" is invalid, should be \"%s\" or \"%s\"", conf.LabelNameType, conf.LabelValueTypeSrc, conf.LabelValueTypeDest)
 	}
 	if serviceInstanceParms.Type == "source" {
 		if serviceInstanceParms.Name == "" {
-			return serviceInstanceParms, fmt.Errorf("parameter \"name\" is missing")
+			return serviceInstanceParms, fmt.Errorf("parameter \"%s\" is missing", conf.LabelNameName)
 		}
 		if !parameterValueRegex.MatchString(serviceInstanceParms.Name) {
-			return serviceInstanceParms, fmt.Errorf("parameter \"name\" is invalid, should match regex %s", parameterValueRegex.String())
+			return serviceInstanceParms, fmt.Errorf("parameter \"%s\" is invalid, should match regex %s", conf.LabelNameName, parameterValueRegex.String())
 		}
 		if serviceInstanceParms.Description == "" {
-			return serviceInstanceParms, fmt.Errorf("parameter \"description\" is missing")
+			return serviceInstanceParms, fmt.Errorf("parameter \"%s\" is missing", conf.LabelNameDesc)
 		}
 		if !parameterValueRegex.MatchString(serviceInstanceParms.Description) {
-			return serviceInstanceParms, fmt.Errorf("parameter \"description\" is invalid, should match regex %s", parameterValueRegex.String())
+			return serviceInstanceParms, fmt.Errorf("parameter \"%s\" is invalid, should match regex %s", conf.LabelNameDesc, parameterValueRegex.String())
 		}
 		if serviceInstanceParms.Scope == "" {
-			return serviceInstanceParms, fmt.Errorf("parameter \"scope\" is missing")
+			return serviceInstanceParms, fmt.Errorf("parameter \"%s\" is missing", conf.LabelNameScope)
 		}
-		if serviceInstanceParms.Scope == "" || (serviceInstanceParms.Scope != "global" && serviceInstanceParms.Scope != "local") {
-			return serviceInstanceParms, fmt.Errorf("parameter \"scope\" is missing or invalid, should be \"global\" or \"local\"")
+		if serviceInstanceParms.Scope == "" || (serviceInstanceParms.Scope != conf.LabelValueScopeGlobal && serviceInstanceParms.Scope != conf.LabelValueScopeLocal) {
+			return serviceInstanceParms, fmt.Errorf("parameter \"%s\" is missing or invalid, should be \"%s\" or \"%s\"", conf.LabelNameScope, conf.LabelValueScopeGlobal, conf.LabelValueScopeLocal)
 		}
 	}
 	if serviceInstanceParms.Type == "destination" {
 		if serviceInstanceParms.Source == "" {
-			return serviceInstanceParms, fmt.Errorf("parameter \"source\" is missing")
+			return serviceInstanceParms, fmt.Errorf("parameter \"%s\" is missing", conf.LabelNameSource)
 		}
 		if !parameterValueRegex.MatchString(serviceInstanceParms.Source) {
-			return serviceInstanceParms, fmt.Errorf("parameter \"source\" is invalid, should match regex %s", parameterValueRegex.String())
+			return serviceInstanceParms, fmt.Errorf("parameter \"%s\" is invalid, should match regex %s", conf.LabelNameSource, parameterValueRegex.String())
 		}
 	}
 	return serviceInstanceParms, nil
