@@ -43,13 +43,17 @@ var (
 )
 
 const (
-	BasicAuthRealm  = "NPSB Network Policy Service Broker"
-	LabelNameType   = "rabobank.com/npsb.type"
-	LabelNameName   = "rabobank.com/npbs.source.name"
-	LabelNameDesc   = "rabobank.com/npsb.source.description"
-	LabelNameScope  = "rabobank.com/npsb.source.scope"
-	LabelNameSource = "rabobank.com/npsb.dest.source"
-	LabelNamePort   = "rabobank.com/npsb.dest.port"
+	BasicAuthRealm        = "NPSB Network Policy Service Broker"
+	LabelNameType         = "rabobank.com/npsb.type"
+	LabelValueTypeSrc     = "source"
+	LabelValueTypeDest    = "destination"
+	LabelNameName         = "rabobank.com/npbs.source.name"
+	LabelNameDesc         = "rabobank.com/npsb.source.description"
+	LabelNameScope        = "rabobank.com/npsb.source.scope"
+	LabelValueScopeLocal  = "local"
+	LabelValueScopeGlobal = "global"
+	LabelNameSource       = "rabobank.com/npsb.dest.source"
+	LabelNamePort         = "rabobank.com/npsb.dest.port"
 )
 
 // EnvironmentComplete - Check for required environment variables and exit if not all are there.
@@ -99,7 +103,6 @@ func EnvironmentComplete() {
 	}
 
 	if UaaApiURL == "" {
-		fmt.Println("UAA url not provided. Inferring it from CF API")
 		if content, e := httpHelper.Request(CfApiURL).Accepting("application/json").Get(); e != nil {
 			fmt.Println("Unable to get CF API endpoints:", e)
 			envComplete = false

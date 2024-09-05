@@ -63,7 +63,7 @@ func AuditLogMiddleware(next http.Handler) http.Handler {
 					}
 				}
 			}
-			fmt.Printf("%s request on path %s by user %s (guid:%s)\n", r.Method, r.RequestURI, origIdentity, jsonObject.UserID)
+			fmt.Printf("%s request: %s by user %s\n", r.Method, r.RequestURI, origIdentity)
 		}
 
 		// Call the next handler, which can be another middleware in the chain, or the final handler.

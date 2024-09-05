@@ -48,3 +48,33 @@ To create the proper credhub entry in the runtime credhub, use the following sam
 ```
 credhub set -n /brokers/npsb/credentials --type json --value='{ "BROKER_PASSWORD": "pswd1", "CLIENT_SECRET": "pswd2" }'
 ```
+
+## CC Queries to determine the needed network policies
+
+# Service bind on type=source instances
+When doing a service bind on a type=source service instance, the broker should first get a list of all type=target service instances that have the label source=<srcname> where <srcname> is the name of the source service instance:
+````
+GET /v3/service_instances?label_selector=rabobank.com/npsb.type=destination,rabobank.com/npsb.dest.source=srcapp1
+````
+Then we should get a list of service bindings for each of these service instances (there must be technical limitations on the number of "service_instance_guids=guid1,guid2,guid999" in the query, but if the list gets long we can always chop the list and do multiple queries):
+````
+GET /v3/service_credential_bindings?service_instance_guids=guid1,guid2,guid999&label_selector=rabobank.com/npsb.dest.port
+````
+Then we can create network policies for each of these service bindings, where:
+* source is the guid of the app that is being bound to the type=source service instance
+* targets is a list of guids of the apps that are being bound to the type=destination service instance (.relationships.app.data.guid)
+* port is optional, can be derived from the service binding of the type=destination service bindings (metadata.labels.rabobank.com/npsb.dest.port), default is 8080
+
+# Service bind on type=destination instances
+When doing a service bind on a type=destination service instance, the broker should first get the service instance that has the label name=<srcname> where <srcname> comes from the source label of the current destination binding.
+````
+GET /v3/service_instances?label_selector=rabobank.com/npsb.type=source,rabobank.com/npsb.source.name=srcapp1
+````
+Then we should get a list of service bindings for this service instance (guid1 is the guid of the only type=source service instance that was found with the previous query):
+````
+GET /v3/service_credential_bindings?service_instance_guids=guid1
+````
+Then we can create network policies for each of these service bindings, where:
+* source is the guid of the app that bound to the type=source service instance (.relationships.app.data.guid)
+* targets is the guid of the app that is currently being bound to the type=destination service instance
+* port is optional, can be derived from the service binding of the type=destination service bindings (metadata.labels.rabobank.com/npsb.dest.port), default is 8080
