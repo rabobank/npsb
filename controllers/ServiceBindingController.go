@@ -72,6 +72,7 @@ func CreateServiceBinding(w http.ResponseWriter, r *http.Request) {
 		} else {
 			var srcPolicies []model.NetworkPolicy
 			var destPolicies []model.NetworkPolicy
+
 			// get the policies for the source service instance
 			if serviceInstance.Metadata.Labels[conf.LabelNameType] != nil && *serviceInstance.Metadata.Labels[conf.LabelNameType] == conf.LabelValueTypeSrc {
 				if srcPolicies, err = policies4Source(*serviceInstance.Metadata.Labels[conf.LabelNameName]); err != nil {
@@ -130,28 +131,64 @@ func validateBindingParameters(serviceBinding model.ServiceBinding) (serviceBind
 }
 
 func policies4Source(srcName string) (policies []model.NetworkPolicy, err error) {
-	// TODO nog even invullen knul
-	fmt.Printf("policies4Source(%s)\n", srcName)
 	policies = make([]model.NetworkPolicy, 0)
+	// find all service instances with label source=srcName
+	labelSelector := client.LabelSelector{}
+	labelSelector.EqualTo(conf.LabelNameSource, fmt.Sprintf("%s", srcName))
+	instanceListoption := client.ServiceInstanceListOptions{ListOptions: &client.ListOptions{LabelSel: labelSelector}}
+	if instances, err := conf.CfClient.ServiceInstances.ListAll(conf.CfCtx, &instanceListoption); err != nil {
+		fmt.Printf("failed to list service instance with label %s=%s: %s\n", conf.LabelNameSource, srcName, err)
+		return nil, err
+	} else {
+		// can be multiple (many) instances
+		if len(instances) < 1 {
+			fmt.Printf("could not find any source service instance with label %s=%s\n", conf.LabelNameName, srcName)
+		} else {
+			serviceGUIDs := make([]string, 0)
+			for _, instance := range instances {
+				serviceGUIDs = append(serviceGUIDs, instance.GUID)
+			}
+			fmt.Printf("found %d source service instances with label %s=%s\n", len(serviceGUIDs), conf.LabelNameSource, srcName)
+			credBindingListOption := client.ServiceCredentialBindingListOptions{ServiceInstanceGUIDs: client.Filter{Values: serviceGUIDs}}
+			if bindings, err := conf.CfClient.ServiceCredentialBindings.ListAll(conf.CfCtx, &credBindingListOption); err != nil {
+				fmt.Printf("failed to list service bindings for source service instance %s: %s\n", instances[0].GUID, err)
+				return nil, err
+			} else {
+				if len(bindings) < 1 {
+					fmt.Printf("could not find any service bindings for %d source service instances with label %s:%s\n", len(serviceGUIDs), conf.LabelNameSource, srcName)
+				} else {
+					for _, binding := range bindings {
+						destPort := "8080"
+						if binding.Metadata.Labels[conf.LabelNamePort] != nil && *binding.Metadata.Labels[conf.LabelNamePort] != "" {
+							destPort = *binding.Metadata.Labels[conf.LabelNamePort]
+						}
+						policy := model.NetworkPolicy{Source: binding.Relationships.App.Data.GUID, Destination: binding.Relationships.App.Data.GUID, Protocol: "TCP", Port: destPort}
+						policies = append(policies, policy)
+					}
+				}
+			}
+		}
+	}
 	return policies, nil
 }
 
 func policies4Destination(srcName string, destAppGuid string, port string) (policies []model.NetworkPolicy, err error) {
 	policies = make([]model.NetworkPolicy, 0)
+	// find all service instances with label name=srcName
 	labelSelector := client.LabelSelector{}
 	labelSelector.EqualTo(conf.LabelNameName, fmt.Sprintf("%s", srcName))
 	instanceListoption := client.ServiceInstanceListOptions{ListOptions: &client.ListOptions{LabelSel: labelSelector}}
 	if instances, err := conf.CfClient.ServiceInstances.ListAll(conf.CfCtx, &instanceListoption); err != nil {
-		fmt.Printf("failed to list service instance with label %s=%s: %s\n", conf.LabelNameName, srcName, err)
+		fmt.Printf("failed to list destination service instance with label %s=%s: %s\n", conf.LabelNameName, srcName, err)
 		return nil, err
 	} else {
 		// this should always be a single instance
 		if len(instances) < 1 {
-			fmt.Printf("could not find any service instance with label %s=%s\n", conf.LabelNameName, srcName)
+			fmt.Printf("could not find any destination service instance with label %s=%s\n", conf.LabelNameName, srcName)
 		} else {
 			credBindingListOption := client.ServiceCredentialBindingListOptions{ServiceInstanceGUIDs: client.Filter{Values: []string{instances[0].GUID}}}
 			if bindings, err := conf.CfClient.ServiceCredentialBindings.ListAll(conf.CfCtx, &credBindingListOption); err != nil {
-				fmt.Printf("failed to list service bindings for service instance %s: %s\n", instances[0].GUID, err)
+				fmt.Printf("failed to list service bindings for destination service instance %s: %s\n", instances[0].GUID, err)
 				return nil, err
 			} else {
 				if len(bindings) < 1 {
