@@ -13,11 +13,16 @@ import (
 	"strconv"
 )
 
-type Credentials string
+const (
+	ActionBind   = "create"
+	ActionUnbind = "delete"
+)
 
-func (c Credentials) ServiceInstanceId(serviceInstanceId string) string {
-	return fmt.Sprintf(string(c), serviceInstanceId)
-}
+//type Credentials string
+//
+//func (c Credentials) ServiceInstanceId(serviceInstanceId string) string {
+//	return fmt.Sprintf(string(c), serviceInstanceId)
+//}
 
 func CreateServiceBinding(w http.ResponseWriter, r *http.Request) {
 	var err error
@@ -42,7 +47,6 @@ func CreateServiceBinding(w http.ResponseWriter, r *http.Request) {
 
 	serviceBindingUpdate := resource.ServiceCredentialBindingUpdate{Metadata: &resource.Metadata{Labels: labels}}
 
-	//
 	// update the service binding with the labels
 	if *labels[conf.LabelNamePort] != "" {
 		if _, err := conf.CfClient.ServiceCredentialBindings.Update(conf.CfCtx, serviceBindingGuid, &serviceBindingUpdate); err != nil {
@@ -51,56 +55,77 @@ func CreateServiceBinding(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	//
-	//get the service instance first to see if it is a source or destination instance
+
 	if serviceInstance, err := conf.CfClient.ServiceInstances.Get(conf.CfCtx, serviceInstanceGuid); err != nil {
 		fmt.Printf("failed to get service instance %s: %s\n", serviceBinding.ServiceInstanceId, err)
 		util.WriteHttpResponse(w, http.StatusBadRequest, model.BrokerError{Error: "FAILED", Description: fmt.Sprintf("failed to get service instance %s: %s", serviceBinding.ServiceInstanceId, err), InstanceUsable: false, UpdateRepeatable: false})
-		return
 	} else {
 		if serviceInstance == nil || serviceInstance.Metadata == nil || serviceInstance.Metadata.Labels == nil {
 			fmt.Printf("service instance (metadata.labels) for id %s not found\n", serviceBinding.ServiceInstanceId)
 			util.WriteHttpResponse(w, http.StatusBadRequest, model.BrokerError{Error: "FAILED", Description: fmt.Sprintf("service instance (metadata.labels) for id %s not found", serviceBinding.ServiceInstanceId), InstanceUsable: false, UpdateRepeatable: false})
-			return
 		} else {
-			var srcPolicies []model.NetworkPolicy
-			var destPolicies []model.NetworkPolicy
-
-			// get the policies for the source service instance
-			if serviceInstance.Metadata.Labels[conf.LabelNameType] != nil && *serviceInstance.Metadata.Labels[conf.LabelNameType] == conf.LabelValueTypeSrc {
-				if srcPolicies, err = policies4Source(*serviceInstance.Metadata.Labels[conf.LabelNameName], serviceBinding.AppGuid); err != nil {
-					fmt.Printf("failed to get policies for source service instance id %s: %s\n", serviceInstanceGuid, err)
-					util.WriteHttpResponse(w, http.StatusBadRequest, model.BrokerError{Error: "FAILED", Description: fmt.Sprintf("failed to create policies for source service instance id %s: %s", serviceInstanceGuid, err), InstanceUsable: false, UpdateRepeatable: false})
-					return
-				} else {
-					if conf.Debug {
-						fmt.Printf("we found %d source policies for label %s=%s\n", len(srcPolicies), conf.LabelNameSource, *serviceInstance.Metadata.Labels[conf.LabelNameName])
-					}
-					for ix, policy := range srcPolicies {
-						fmt.Printf("policy %d created for source service instance id %s: %s\n", ix, serviceInstanceGuid, policy)
-					}
-				}
+			port, _ := strconv.Atoi(portStr)
+			if numProcessedPolicies, err := createOrDeletePolicies(ActionBind, serviceInstance, serviceBinding.AppGuid, port); err != nil {
+				util.WriteHttpResponse(w, http.StatusBadRequest, model.BrokerError{Error: "FAILED", Description: fmt.Sprintf("failed to create policies for service instance %s: %s", serviceBinding.ServiceInstanceId, err), InstanceUsable: false, UpdateRepeatable: false})
+			} else {
+				util.WriteHttpResponse(w, http.StatusOK, model.CreateServiceBindingResponse{Result: fmt.Sprintf("bind completed, created %d policies", numProcessedPolicies)})
 			}
-			// get the policies for the destination service instance
-			if serviceInstance.Metadata.Labels[conf.LabelNameType] != nil && *serviceInstance.Metadata.Labels[conf.LabelNameType] == conf.LabelValueTypeDest {
-				if destPolicies, err = policies4Destination(*serviceInstance.Metadata.Labels[conf.LabelNameSource], serviceBinding.BindResource.AppGuid, serviceBindingParms.Port); err != nil {
-					fmt.Printf("failed to get policies for destination service instance id %s: %s\n", serviceInstanceGuid, err)
-					util.WriteHttpResponse(w, http.StatusBadRequest, model.BrokerError{Error: "FAILED", Description: fmt.Sprintf("failed to create policies for destination service instance id %s: %s", serviceInstanceGuid, err), InstanceUsable: false, UpdateRepeatable: false})
-					return
-				} else {
-					for ix, policy := range destPolicies {
-						fmt.Printf("policy %d created for destination service instance id %s: %s\n", ix, serviceInstanceGuid, policy)
-					}
-				}
-			}
-			util.WriteHttpResponse(w, http.StatusOK, model.CreateServiceBindingResponse{Result: fmt.Sprintf("bind completed, created %d policies", len(srcPolicies)+len(destPolicies))})
 		}
 	}
 }
 
 func DeleteServiceBinding(w http.ResponseWriter, r *http.Request) {
+	serviceInstanceGuid := mux.Vars(r)["service_instance_guid"]
 	serviceBindingGuid := mux.Vars(r)["service_binding_guid"]
-	util.WriteHttpResponse(w, http.StatusOK, model.DeleteServiceBindingResponse{Result: fmt.Sprintf("unbind completed for binding %s\n", serviceBindingGuid)})
+
+	if serviceCredentialBinding, err := conf.CfClient.ServiceCredentialBindings.Get(conf.CfCtx, serviceBindingGuid); err != nil {
+		util.WriteHttpResponse(w, http.StatusBadRequest, model.BrokerError{Error: "FAILED", Description: fmt.Sprintf("failed to get service binding %s: %s", serviceBindingGuid, err), InstanceUsable: false, UpdateRepeatable: false})
+	} else {
+		if serviceInstance, err := conf.CfClient.ServiceInstances.Get(conf.CfCtx, serviceInstanceGuid); err != nil {
+			fmt.Printf("failed to get service instance %s: %s\n", serviceCredentialBinding.Relationships.ServiceInstance.Data.GUID, err)
+			util.WriteHttpResponse(w, http.StatusBadRequest, model.BrokerError{Error: "FAILED", Description: fmt.Sprintf("failed to get service instance %s: %s", serviceCredentialBinding.Relationships.ServiceInstance.Data.GUID, err), InstanceUsable: false, UpdateRepeatable: false})
+		} else {
+			if serviceInstance == nil || serviceInstance.Metadata == nil || serviceInstance.Metadata.Labels == nil {
+				fmt.Printf("service instance (metadata.labels) for id %s not found\n", serviceCredentialBinding.Relationships.ServiceInstance.Data.GUID)
+				util.WriteHttpResponse(w, http.StatusBadRequest, model.BrokerError{Error: "FAILED", Description: fmt.Sprintf("service instance (metadata.labels) for id %s not found", serviceCredentialBinding.Relationships.ServiceInstance.Data.GUID), InstanceUsable: false, UpdateRepeatable: false})
+			} else {
+				port, _ := strconv.Atoi(*serviceCredentialBinding.Metadata.Labels[conf.LabelNamePort])
+				if numProcessedPolicies, err := createOrDeletePolicies(ActionUnbind, serviceInstance, serviceCredentialBinding.Relationships.App.Data.GUID, port); err != nil {
+					util.WriteHttpResponse(w, http.StatusBadRequest, model.BrokerError{Error: "FAILED", Description: fmt.Sprintf("failed to create policies for service instance %s: %s", serviceCredentialBinding.Relationships.ServiceInstance.Data.GUID, err), InstanceUsable: false, UpdateRepeatable: false})
+				} else {
+					util.WriteHttpResponse(w, http.StatusOK, model.CreateServiceBindingResponse{Result: fmt.Sprintf("bind completed, created %d policies", numProcessedPolicies)})
+				}
+			}
+		}
+	}
+}
+
+func createOrDeletePolicies(action string, serviceInstance *resource.ServiceInstance, appGuid string, port int) (numProcessed int, err error) {
+	var srcPolicies []model.NetworkPolicy
+	var destPolicies []model.NetworkPolicy
+	// get the policies for the source service instance
+	if serviceInstance.Metadata.Labels[conf.LabelNameType] != nil && *serviceInstance.Metadata.Labels[conf.LabelNameType] == conf.LabelValueTypeSrc {
+		if srcPolicies, err = policies4Source(*serviceInstance.Metadata.Labels[conf.LabelNameName], appGuid); err != nil {
+			fmt.Printf("failed to get policies for source service instance id %s: %s\n", serviceInstance.GUID, err)
+			return 0, err
+		} else {
+			for ix, policy := range srcPolicies {
+				fmt.Printf("%s policy %d for source service instance id %s: %s\n", action, ix, serviceInstance.GUID, policy)
+			}
+		}
+	}
+	// get the policies for the destination service instance
+	if serviceInstance.Metadata.Labels[conf.LabelNameType] != nil && *serviceInstance.Metadata.Labels[conf.LabelNameType] == conf.LabelValueTypeDest {
+		if destPolicies, err = policies4Destination(*serviceInstance.Metadata.Labels[conf.LabelNameSource], appGuid, port); err != nil {
+			fmt.Printf("failed to get policies for destination service instance id %s: %s\n", serviceInstance.GUID, err)
+			return 0, err
+		} else {
+			for ix, policy := range destPolicies {
+				fmt.Printf("%s policy %d for destination service instance id %s: %s\n", action, ix, serviceInstance.GUID, policy)
+			}
+		}
+	}
+	return
 }
 
 func validateBindingParameters(serviceBinding model.ServiceBinding) (serviceBindingParms model.ServiceBindingParameters, err error) {
@@ -124,8 +149,8 @@ func policies4Source(srcName string, srcAppGuid string) (policies []model.Networ
 	// find all service instances with label source=srcName
 	labelSelector := client.LabelSelector{}
 	labelSelector.EqualTo(conf.LabelNameSource, fmt.Sprintf("%s", srcName))
-	instanceListoption := client.ServiceInstanceListOptions{ListOptions: &client.ListOptions{LabelSel: labelSelector}}
-	if instances, err := conf.CfClient.ServiceInstances.ListAll(conf.CfCtx, &instanceListoption); err != nil {
+	instanceListOption := client.ServiceInstanceListOptions{ListOptions: &client.ListOptions{LabelSel: labelSelector}}
+	if instances, err := conf.CfClient.ServiceInstances.ListAll(conf.CfCtx, &instanceListOption); err != nil {
 		fmt.Printf("failed to list service instance with label %s=%s: %s\n", conf.LabelNameSource, srcName, err)
 		return nil, err
 	} else {
@@ -148,7 +173,7 @@ func policies4Source(srcName string, srcAppGuid string) (policies []model.Networ
 				} else {
 					for _, binding := range bindings {
 						destPort := 8080
-						if binding.Metadata.Labels[conf.LabelNamePort] != nil && *binding.Metadata.Labels[conf.LabelNamePort] != "" {
+						if binding.Metadata.Labels[conf.LabelNamePort] != nil && *binding.Metadata.Labels[conf.LabelNamePort] != "0" {
 							destPort, _ = strconv.Atoi(*binding.Metadata.Labels[conf.LabelNamePort])
 						}
 						policy := model.NetworkPolicy{Source: binding.Relationships.App.Data.GUID, SourceName: util.Guid2AppName(srcAppGuid), Destination: binding.Relationships.App.Data.GUID, DestinationName: util.Guid2AppName(binding.Relationships.App.Data.GUID), Protocol: "TCP", Port: destPort}
