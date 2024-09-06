@@ -10,9 +10,9 @@ type NetworkPolicy struct {
 	Destination     string `json:"destination"`
 	DestinationName string
 	Protocol        string `json:"protocol"`
-	Port            string `json:"port"`
+	Port            int    `json:"port"`
 }
 
 func (np NetworkPolicy) String() string {
-	return fmt.Sprintf("%s (%s) => %s (%s):%s", np.SourceName, np.Source, np.DestinationName, np.Destination, np.Port)
+	return fmt.Sprintf("%s (%s) => %s (%s):%d", np.SourceName, np.Source, np.DestinationName, np.Destination, np.Port)
 }

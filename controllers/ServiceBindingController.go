@@ -37,25 +37,18 @@ func CreateServiceBinding(w http.ResponseWriter, r *http.Request) {
 	}
 
 	labels := make(map[string]*string)
-	labels[conf.LabelNamePort] = &serviceBindingParms.Port
+	portStr := strconv.Itoa(serviceBindingParms.Port)
+	labels[conf.LabelNamePort] = &portStr
 
 	serviceBindingUpdate := resource.ServiceCredentialBindingUpdate{Metadata: &resource.Metadata{Labels: labels}}
 
 	//
 	// update the service binding with the labels
 	if *labels[conf.LabelNamePort] != "" {
-		if sb, err := conf.CfClient.ServiceCredentialBindings.Update(conf.CfCtx, serviceBindingGuid, &serviceBindingUpdate); err != nil {
+		if _, err := conf.CfClient.ServiceCredentialBindings.Update(conf.CfCtx, serviceBindingGuid, &serviceBindingUpdate); err != nil {
 			fmt.Printf("failed to update service binding %s: %s\n", serviceBindingGuid, err)
 			util.WriteHttpResponse(w, http.StatusBadRequest, model.BrokerError{Error: "FAILED", Description: fmt.Sprintf("failed to update service binding %s: %s", serviceBindingGuid, err), InstanceUsable: false, UpdateRepeatable: false})
 			return
-		} else {
-			labelsToPrint := ""
-			for _, labelName := range conf.AllLabelNames {
-				if labelValue, found := sb.Metadata.Labels[labelName]; found && labelValue != nil && *labelValue != "" {
-					labelsToPrint = fmt.Sprintf("%s %s=%s", labelsToPrint, labelName, *labelValue)
-				}
-			}
-			fmt.Printf("service binding %s updated with labels %s\n", serviceBindingGuid, labelsToPrint)
 		}
 	}
 	//
@@ -76,7 +69,7 @@ func CreateServiceBinding(w http.ResponseWriter, r *http.Request) {
 			// get the policies for the source service instance
 			if serviceInstance.Metadata.Labels[conf.LabelNameType] != nil && *serviceInstance.Metadata.Labels[conf.LabelNameType] == conf.LabelValueTypeSrc {
 				if srcPolicies, err = policies4Source(*serviceInstance.Metadata.Labels[conf.LabelNameName], serviceBinding.AppGuid); err != nil {
-					fmt.Printf("failed to create policies for source service instance id %s: %s\n", serviceInstanceGuid, err)
+					fmt.Printf("failed to get policies for source service instance id %s: %s\n", serviceInstanceGuid, err)
 					util.WriteHttpResponse(w, http.StatusBadRequest, model.BrokerError{Error: "FAILED", Description: fmt.Sprintf("failed to create policies for source service instance id %s: %s", serviceInstanceGuid, err), InstanceUsable: false, UpdateRepeatable: false})
 					return
 				} else {
@@ -91,7 +84,7 @@ func CreateServiceBinding(w http.ResponseWriter, r *http.Request) {
 			// get the policies for the destination service instance
 			if serviceInstance.Metadata.Labels[conf.LabelNameType] != nil && *serviceInstance.Metadata.Labels[conf.LabelNameType] == conf.LabelValueTypeDest {
 				if destPolicies, err = policies4Destination(*serviceInstance.Metadata.Labels[conf.LabelNameSource], serviceBinding.BindResource.AppGuid, serviceBindingParms.Port); err != nil {
-					fmt.Printf("failed to create policies for destination service instance id %s: %s\n", serviceInstanceGuid, err)
+					fmt.Printf("failed to get policies for destination service instance id %s: %s\n", serviceInstanceGuid, err)
 					util.WriteHttpResponse(w, http.StatusBadRequest, model.BrokerError{Error: "FAILED", Description: fmt.Sprintf("failed to create policies for destination service instance id %s: %s", serviceInstanceGuid, err), InstanceUsable: false, UpdateRepeatable: false})
 					return
 				} else {
@@ -120,12 +113,8 @@ func validateBindingParameters(serviceBinding model.ServiceBinding) (serviceBind
 	if err = json.Unmarshal(body, &serviceBindingParms); err != nil {
 		return serviceBindingParms, fmt.Errorf("failed to unmarshal parameters: %s", err)
 	}
-	if serviceBindingParms.Port != "" {
-		if i, err := strconv.Atoi(serviceBindingParms.Port); err != nil {
-			return serviceBindingParms, fmt.Errorf("parameter \"port\" is invalid, should be an integer between 1024 and 65535")
-		} else if i <= minvalue || i >= maxValue {
-			return serviceBindingParms, fmt.Errorf("parameter \"port\" is invalid, should be an integer between 1024 and 65535")
-		}
+	if serviceBindingParms.Port <= minvalue || serviceBindingParms.Port >= maxValue {
+		return serviceBindingParms, fmt.Errorf("parameter \"port\" is invalid, should be an integer between 1024 and 65535")
 	}
 	return serviceBindingParms, nil
 }
@@ -158,9 +147,9 @@ func policies4Source(srcName string, srcAppGuid string) (policies []model.Networ
 					fmt.Printf("could not find any service bindings for %d source service instances with label %s:%s\n", len(serviceGUIDs), conf.LabelNameSource, srcName)
 				} else {
 					for _, binding := range bindings {
-						destPort := "8080"
+						destPort := 8080
 						if binding.Metadata.Labels[conf.LabelNamePort] != nil && *binding.Metadata.Labels[conf.LabelNamePort] != "" {
-							destPort = *binding.Metadata.Labels[conf.LabelNamePort]
+							destPort, _ = strconv.Atoi(*binding.Metadata.Labels[conf.LabelNamePort])
 						}
 						policy := model.NetworkPolicy{Source: binding.Relationships.App.Data.GUID, SourceName: util.Guid2AppName(srcAppGuid), Destination: binding.Relationships.App.Data.GUID, DestinationName: util.Guid2AppName(binding.Relationships.App.Data.GUID), Protocol: "TCP", Port: destPort}
 						policies = append(policies, policy)
@@ -172,7 +161,7 @@ func policies4Source(srcName string, srcAppGuid string) (policies []model.Networ
 	return policies, nil
 }
 
-func policies4Destination(srcName string, destAppGuid string, port string) (policies []model.NetworkPolicy, err error) {
+func policies4Destination(srcName string, destAppGuid string, port int) (policies []model.NetworkPolicy, err error) {
 	policies = make([]model.NetworkPolicy, 0)
 	// find all service instances with label name=srcName
 	labelSelector := client.LabelSelector{}
@@ -195,8 +184,8 @@ func policies4Destination(srcName string, destAppGuid string, port string) (poli
 					fmt.Printf("could not find any service bindings for service instance %s with label %s:%s\n", instances[0].GUID, conf.LabelNameName, srcName)
 				} else {
 					for _, binding := range bindings {
-						destPort := "8080"
-						if port != "" {
+						destPort := 8080
+						if port != 0 {
 							destPort = port
 						}
 						policy := model.NetworkPolicy{Source: binding.Relationships.App.Data.GUID, SourceName: util.Guid2AppName(binding.Relationships.App.Data.GUID), Destination: destAppGuid, DestinationName: util.Guid2AppName(destAppGuid), Protocol: "TCP", Port: destPort}

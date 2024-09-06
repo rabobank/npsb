@@ -44,16 +44,16 @@ var (
 
 const (
 	BasicAuthRealm        = "NPSB Network Policy Service Broker"
-	LabelNameType         = "rabobank.com/npsb.type"
+	LabelNameType         = "npsb.type"
 	LabelValueTypeSrc     = "source"
 	LabelValueTypeDest    = "destination"
-	LabelNameName         = "rabobank.com/npbs.source.name"
-	LabelNameDesc         = "rabobank.com/npsb.source.description"
-	LabelNameScope        = "rabobank.com/npsb.source.scope"
+	LabelNameName         = "npsb.source.name"
+	LabelNameDesc         = "npsb.source.description"
+	LabelNameScope        = "npsb.source.scope"
 	LabelValueScopeLocal  = "local"
 	LabelValueScopeGlobal = "global"
-	LabelNameSource       = "rabobank.com/npsb.dest.source"
-	LabelNamePort         = "rabobank.com/npsb.dest.port"
+	LabelNameSource       = "npsb.dest.source"
+	LabelNamePort         = "npsb.dest.port"
 )
 
 // EnvironmentComplete - Check for required environment variables and exit if not all are there.

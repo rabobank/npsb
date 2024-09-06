@@ -24,5 +24,5 @@ type DeleteServiceBindingResponse struct {
 }
 
 type ServiceBindingParameters struct {
-	Port string `json:"port"`
+	Port int `json:"port"`
 }
