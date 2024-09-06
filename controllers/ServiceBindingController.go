@@ -75,7 +75,7 @@ func CreateServiceBinding(w http.ResponseWriter, r *http.Request) {
 
 			// get the policies for the source service instance
 			if serviceInstance.Metadata.Labels[conf.LabelNameType] != nil && *serviceInstance.Metadata.Labels[conf.LabelNameType] == conf.LabelValueTypeSrc {
-				if srcPolicies, err = policies4Source(*serviceInstance.Metadata.Labels[conf.LabelNameName]); err != nil {
+				if srcPolicies, err = policies4Source(*serviceInstance.Metadata.Labels[conf.LabelNameName], serviceBinding.AppGuid); err != nil {
 					fmt.Printf("failed to create policies for source service instance id %s: %s\n", serviceInstanceGuid, err)
 					util.WriteHttpResponse(w, http.StatusBadRequest, model.BrokerError{Error: "FAILED", Description: fmt.Sprintf("failed to create policies for source service instance id %s: %s", serviceInstanceGuid, err), InstanceUsable: false, UpdateRepeatable: false})
 					return
@@ -130,7 +130,7 @@ func validateBindingParameters(serviceBinding model.ServiceBinding) (serviceBind
 	return serviceBindingParms, nil
 }
 
-func policies4Source(srcName string) (policies []model.NetworkPolicy, err error) {
+func policies4Source(srcName string, srcAppGuid string) (policies []model.NetworkPolicy, err error) {
 	policies = make([]model.NetworkPolicy, 0)
 	// find all service instances with label source=srcName
 	labelSelector := client.LabelSelector{}
@@ -162,7 +162,7 @@ func policies4Source(srcName string) (policies []model.NetworkPolicy, err error)
 						if binding.Metadata.Labels[conf.LabelNamePort] != nil && *binding.Metadata.Labels[conf.LabelNamePort] != "" {
 							destPort = *binding.Metadata.Labels[conf.LabelNamePort]
 						}
-						policy := model.NetworkPolicy{Source: binding.Relationships.App.Data.GUID, Destination: binding.Relationships.App.Data.GUID, Protocol: "TCP", Port: destPort}
+						policy := model.NetworkPolicy{Source: binding.Relationships.App.Data.GUID, SourceName: util.Guid2AppName(srcAppGuid), Destination: binding.Relationships.App.Data.GUID, DestinationName: util.Guid2AppName(binding.Relationships.App.Data.GUID), Protocol: "TCP", Port: destPort}
 						policies = append(policies, policy)
 					}
 				}
@@ -199,7 +199,7 @@ func policies4Destination(srcName string, destAppGuid string, port string) (poli
 						if port != "" {
 							destPort = port
 						}
-						policy := model.NetworkPolicy{Source: binding.Relationships.App.Data.GUID, Destination: destAppGuid, Protocol: "TCP", Port: destPort}
+						policy := model.NetworkPolicy{Source: binding.Relationships.App.Data.GUID, SourceName: util.Guid2AppName(binding.Relationships.App.Data.GUID), Destination: destAppGuid, DestinationName: util.Guid2AppName(destAppGuid), Protocol: "TCP", Port: destPort}
 						policies = append(policies, policy)
 					}
 				}

@@ -25,6 +25,8 @@ const (
 	cfKeyPathEnv  = "CF_INSTANCE_KEY"
 )
 
+var guid2appNameCache = make(map[string]string)
+
 //type tokenRefresher struct {
 //	uaaClient *uaago.Client
 //}
@@ -193,4 +195,17 @@ func LinesFromReader(r io.Reader) (*[]string, error) {
 		return nil, err
 	}
 	return &lines, nil
+}
+
+func Guid2AppName(guid string) string {
+	if appName, found := guid2appNameCache[guid]; found {
+		return appName
+	}
+	if app, err := conf.CfClient.Applications.Get(conf.CfCtx, guid); err != nil {
+		fmt.Printf("failed to get app by guid %s, error: %s\n", guid, err)
+		return ""
+	} else {
+		guid2appNameCache[guid] = app.Name
+		return app.Name
+	}
 }
