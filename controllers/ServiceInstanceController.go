@@ -3,6 +3,7 @@ package controllers
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/cloudfoundry/go-cfclient/v3/client"
 	"github.com/cloudfoundry/go-cfclient/v3/resource"
 	"net/http"
 	"regexp"
@@ -74,25 +75,6 @@ func DeleteServiceInstance(w http.ResponseWriter, r *http.Request) {
 	util.WriteHttpResponse(w, http.StatusOK, response)
 }
 
-//
-//func GetServiceInstanceLastOperation(w http.ResponseWriter, r *http.Request) {
-//	serviceInstanceId := mux.Vars(r)["service_instance_guid"]
-//	fmt.Printf("get service instance LastOperation for %s...\n", serviceInstanceId)
-//	if operation, found := instanceOperations[serviceInstanceId]; !found {
-//		response := &model.LastOperation{State: model.StatusFailed, Description: fmt.Sprintf("Service instance %s not found", serviceInstanceId)}
-//		util.WriteHttpResponse(w, http.StatusOK, response)
-//	} else {
-//		if operation == model.StatusInProgress {
-//			response := &model.LastOperation{State: operation, Description: fmt.Sprintf("Service instance %s is being processed", serviceInstanceId)}
-//			util.WriteHttpResponse(w, http.StatusOK, response)
-//		}
-//		if operation == model.StatusSucceeded {
-//			response := &model.LastOperation{State: operation, Description: fmt.Sprintf("Service instance %s has been successfully created", serviceInstanceId)}
-//			util.WriteHttpResponse(w, http.StatusOK, response)
-//		}
-//	}
-//}
-
 func validateInstanceParameters(serviceInstance model.ServiceInstance) (serviceInstanceParms model.ServiceInstanceParameters, err error) {
 	parameterValueRegex := regexp.MustCompile("^[a-zA-Z0-9._-]{1,64}$")
 	if serviceInstance.Parameters == nil {
@@ -127,7 +109,11 @@ func validateInstanceParameters(serviceInstance model.ServiceInstance) (serviceI
 		if serviceInstanceParms.Scope == "" || (serviceInstanceParms.Scope != conf.LabelValueScopeGlobal && serviceInstanceParms.Scope != conf.LabelValueScopeLocal) {
 			return serviceInstanceParms, fmt.Errorf("parameter \"%s\" is missing or invalid, should be \"%s\" or \"%s\"", conf.LabelNameScope, conf.LabelValueScopeGlobal, conf.LabelValueScopeLocal)
 		}
+		if instanceWithNameExists(serviceInstanceParms.Name) {
+			return serviceInstanceParms, fmt.Errorf("a network-policies service with label \"%s\"=%s is already taken", conf.LabelNameName, serviceInstanceParms.Name)
+		}
 	}
+
 	if serviceInstanceParms.Type == "destination" {
 		if serviceInstanceParms.Source == "" {
 			return serviceInstanceParms, fmt.Errorf("parameter \"%s\" is missing", conf.LabelNameSource)
@@ -137,4 +123,41 @@ func validateInstanceParameters(serviceInstance model.ServiceInstance) (serviceI
 		}
 	}
 	return serviceInstanceParms, nil
+}
+
+// instanceWithNameExists checks if a service instance with the given name (and the network policies service name) already exists. If errors occur, we return true so the caller fails
+func instanceWithNameExists(srcName string) bool {
+	// get the plan first
+	var servicePlanGuid string
+	planListOptions := client.ServicePlanListOptions{
+		Names:                client.Filter{Values: []string{"default"}},
+		ServiceOfferingNames: client.Filter{Values: []string{"network-policies"}},
+	}
+	if plans, err := conf.CfClient.ServicePlans.ListAll(conf.CfCtx, &planListOptions); err != nil {
+		fmt.Printf("failed to list service plans: %s\n", err)
+		return true
+	} else {
+		if len(plans) == 0 {
+			fmt.Printf("no service plans found\n")
+			return true
+		}
+		servicePlanGuid = plans[0].GUID
+	}
+
+	labelSelector := client.LabelSelector{}
+	labelSelector.EqualTo(conf.LabelNameName, fmt.Sprintf("%s", srcName))
+	instanceListOptions := client.ServiceInstanceListOptions{
+		ServicePlanGUIDs: client.Filter{Values: []string{servicePlanGuid}},
+		ListOptions:      &client.ListOptions{LabelSel: labelSelector},
+	}
+	if instances, err := conf.CfClient.ServiceInstances.ListAll(conf.CfCtx, &instanceListOptions); err != nil {
+		fmt.Printf("failed to list service instances with label %s=%s: %s\n", conf.LabelNameName, srcName, err)
+		return false
+	} else {
+		if len(instances) > 0 {
+			fmt.Printf("service instance with label %s=%s already exists with name=%s, instance_guid=%s, space_guid=%s\n", conf.LabelNameName, srcName, instances[0].Name, instances[0].GUID, instances[0].Relationships.Space.Data.GUID)
+			return true
+		}
+	}
+	return false
 }

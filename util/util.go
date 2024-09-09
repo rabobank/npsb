@@ -25,7 +25,13 @@ const (
 	cfKeyPathEnv  = "CF_INSTANCE_KEY"
 )
 
-var guid2appNameCache = make(map[string]string)
+var guid2appNameCache = make(map[string]CacheEntry)
+var cacheCleanerStarted = false
+
+type CacheEntry struct {
+	created time.Time
+	guid    string
+}
 
 //type tokenRefresher struct {
 //	uaaClient *uaago.Client
@@ -198,14 +204,33 @@ func LinesFromReader(r io.Reader) (*[]string, error) {
 }
 
 func Guid2AppName(guid string) string {
-	if appName, found := guid2appNameCache[guid]; found {
-		return appName
+	if !cacheCleanerStarted {
+		cacheCleanerStarted = true
+		go func() {
+			for {
+				time.Sleep(5 * time.Second)
+				for key, value := range guid2appNameCache {
+					if time.Since(value.created) > 5*time.Second {
+						delete(guid2appNameCache, key)
+						if conf.Debug {
+							fmt.Printf("cleaned cache entry for key %s\n", key)
+						}
+					}
+				}
+			}
+		}()
+	}
+	if cacheEntry, found := guid2appNameCache[guid]; found {
+		if conf.Debug {
+			fmt.Printf("cache hit for guid %s\n", guid)
+		}
+		return cacheEntry.guid
 	}
 	if app, err := conf.CfClient.Applications.Get(conf.CfCtx, guid); err != nil {
 		fmt.Printf("failed to get app by guid %s, error: %s\n", guid, err)
 		return ""
 	} else {
-		guid2appNameCache[guid] = app.Name
+		guid2appNameCache[guid] = CacheEntry{created: time.Now(), guid: app.Name}
 		return app.Name
 	}
 }

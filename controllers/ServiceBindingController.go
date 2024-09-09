@@ -18,12 +18,6 @@ const (
 	ActionUnbind = "delete"
 )
 
-//type Credentials string
-//
-//func (c Credentials) ServiceInstanceId(serviceInstanceId string) string {
-//	return fmt.Sprintf(string(c), serviceInstanceId)
-//}
-
 func CreateServiceBinding(w http.ResponseWriter, r *http.Request) {
 	var err error
 	serviceInstanceGuid := mux.Vars(r)["service_instance_guid"]
@@ -74,6 +68,7 @@ func CreateServiceBinding(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// DeleteServiceBinding - Deletes the service binding and the associated network policies
 func DeleteServiceBinding(w http.ResponseWriter, r *http.Request) {
 	serviceInstanceGuid := mux.Vars(r)["service_instance_guid"]
 	serviceBindingGuid := mux.Vars(r)["service_binding_guid"]
@@ -100,9 +95,12 @@ func DeleteServiceBinding(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// createOrDeletePolicies - Creates or deletes (indicated by the action parameter) network policies for the given source or destination (determined by the presence of the name or source label) service instances,
+//
+//	returns the number of policies created or deleted and an optional error
 func createOrDeletePolicies(action string, serviceInstance *resource.ServiceInstance, appGuid string, port int) (numProcessed int, err error) {
-	var srcPolicies []model.NetworkPolicy
-	var destPolicies []model.NetworkPolicy
+	var srcPolicies []model.NetworkPolicyLabels
+	var destPolicies []model.NetworkPolicyLabels
 	// get the policies for the source service instance
 	if serviceInstance.Metadata.Labels[conf.LabelNameType] != nil && *serviceInstance.Metadata.Labels[conf.LabelNameType] == conf.LabelValueTypeSrc {
 		if srcPolicies, err = policies4Source(*serviceInstance.Metadata.Labels[conf.LabelNameName], appGuid); err != nil {
@@ -128,6 +126,7 @@ func createOrDeletePolicies(action string, serviceInstance *resource.ServiceInst
 	return
 }
 
+// validateBindingParameters - Validates the parameters of the service binding, returns the parameters or an error. The only allowed parameter is port, it must be between 1024 and 65535
 func validateBindingParameters(serviceBinding model.ServiceBinding) (serviceBindingParms model.ServiceBindingParameters, err error) {
 	minvalue := 1024
 	maxValue := 65535
@@ -144,8 +143,9 @@ func validateBindingParameters(serviceBinding model.ServiceBinding) (serviceBind
 	return serviceBindingParms, nil
 }
 
-func policies4Source(srcName string, srcAppGuid string) (policies []model.NetworkPolicy, err error) {
-	policies = make([]model.NetworkPolicy, 0)
+// policies4Source - Returns the policy labels for the source service instance with the given name and app guid for the app that is being bound. The destination service instance is identified by the label source=srcName
+func policies4Source(srcName string, srcAppGuid string) (policyLabels []model.NetworkPolicyLabels, err error) {
+	policyLabels = make([]model.NetworkPolicyLabels, 0)
 	// find all service instances with label source=srcName
 	labelSelector := client.LabelSelector{}
 	labelSelector.EqualTo(conf.LabelNameSource, fmt.Sprintf("%s", srcName))
@@ -156,13 +156,17 @@ func policies4Source(srcName string, srcAppGuid string) (policies []model.Networ
 	} else {
 		// can be multiple (many) instances
 		if len(instances) < 1 {
-			fmt.Printf("could not find any source service instance with label %s=%s\n", conf.LabelNameName, srcName)
+			if conf.Debug {
+				fmt.Printf("could not find any source service instance with label %s=%s\n", conf.LabelNameName, srcName)
+			}
 		} else {
 			serviceGUIDs := make([]string, 0)
 			for _, instance := range instances {
 				serviceGUIDs = append(serviceGUIDs, instance.GUID)
 			}
-			fmt.Printf("found %d source service instances with label %s=%s\n", len(serviceGUIDs), conf.LabelNameSource, srcName)
+			if conf.Debug {
+				fmt.Printf("found %d source service instances with label %s=%s\n", len(serviceGUIDs), conf.LabelNameSource, srcName)
+			}
 			credBindingListOption := client.ServiceCredentialBindingListOptions{ServiceInstanceGUIDs: client.Filter{Values: serviceGUIDs}}
 			if bindings, err := conf.CfClient.ServiceCredentialBindings.ListAll(conf.CfCtx, &credBindingListOption); err != nil {
 				fmt.Printf("failed to list service bindings for source service instance %s: %s\n", instances[0].GUID, err)
@@ -176,18 +180,19 @@ func policies4Source(srcName string, srcAppGuid string) (policies []model.Networ
 						if binding.Metadata.Labels[conf.LabelNamePort] != nil && *binding.Metadata.Labels[conf.LabelNamePort] != "0" {
 							destPort, _ = strconv.Atoi(*binding.Metadata.Labels[conf.LabelNamePort])
 						}
-						policy := model.NetworkPolicy{Source: binding.Relationships.App.Data.GUID, SourceName: util.Guid2AppName(srcAppGuid), Destination: binding.Relationships.App.Data.GUID, DestinationName: util.Guid2AppName(binding.Relationships.App.Data.GUID), Protocol: "TCP", Port: destPort}
-						policies = append(policies, policy)
+						policy := model.NetworkPolicyLabels{Source: binding.Relationships.App.Data.GUID, SourceName: util.Guid2AppName(srcAppGuid), Destination: binding.Relationships.App.Data.GUID, DestinationName: util.Guid2AppName(binding.Relationships.App.Data.GUID), Protocol: "TCP", Port: destPort}
+						policyLabels = append(policyLabels, policy)
 					}
 				}
 			}
 		}
 	}
-	return policies, nil
+	return policyLabels, nil
 }
 
-func policies4Destination(srcName string, destAppGuid string, port int) (policies []model.NetworkPolicy, err error) {
-	policies = make([]model.NetworkPolicy, 0)
+// policies4Destination - Returns the policy labels for the destination service instance with the given name and app guid for the app that is being bound. The source service instance is identified by the label name=srcName
+func policies4Destination(srcName string, destAppGuid string, port int) (policyLabels []model.NetworkPolicyLabels, err error) {
+	policyLabels = make([]model.NetworkPolicyLabels, 0)
 	// find all service instances with label name=srcName
 	labelSelector := client.LabelSelector{}
 	labelSelector.EqualTo(conf.LabelNameName, fmt.Sprintf("%s", srcName))
@@ -213,12 +218,12 @@ func policies4Destination(srcName string, destAppGuid string, port int) (policie
 						if port != 0 {
 							destPort = port
 						}
-						policy := model.NetworkPolicy{Source: binding.Relationships.App.Data.GUID, SourceName: util.Guid2AppName(binding.Relationships.App.Data.GUID), Destination: destAppGuid, DestinationName: util.Guid2AppName(destAppGuid), Protocol: "TCP", Port: destPort}
-						policies = append(policies, policy)
+						policy := model.NetworkPolicyLabels{Source: binding.Relationships.App.Data.GUID, SourceName: util.Guid2AppName(binding.Relationships.App.Data.GUID), Destination: destAppGuid, DestinationName: util.Guid2AppName(destAppGuid), Protocol: "TCP", Port: destPort}
+						policyLabels = append(policyLabels, policy)
 					}
 				}
 			}
 		}
 	}
-	return policies, nil
+	return policyLabels, nil
 }

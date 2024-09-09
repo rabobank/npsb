@@ -4,7 +4,7 @@ import (
 	"fmt"
 )
 
-type NetworkPolicy struct {
+type NetworkPolicyLabels struct {
 	Source          string `json:"source"` // app guid
 	SourceName      string
 	Destination     string `json:"destination"`
@@ -13,6 +13,6 @@ type NetworkPolicy struct {
 	Port            int    `json:"port"`
 }
 
-func (np NetworkPolicy) String() string {
+func (np NetworkPolicyLabels) String() string {
 	return fmt.Sprintf("%s (%s) => %s (%s):%d", np.SourceName, np.Source, np.DestinationName, np.Destination, np.Port)
 }
