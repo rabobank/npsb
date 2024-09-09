@@ -54,6 +54,8 @@ const (
 	LabelValueScopeGlobal = "global"
 	LabelNameSource       = "npsb.dest.source"
 	LabelNamePort         = "npsb.dest.port"
+	ActionBind            = "create"
+	ActionUnbind          = "delete"
 )
 
 // EnvironmentComplete - Check for required environment variables and exit if not all are there.

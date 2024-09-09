@@ -234,3 +234,68 @@ func Guid2AppName(guid string) string {
 		return app.Name
 	}
 }
+
+// Send2PolicyServer - Send the give network policies to the cf policy server (actual update/add of the network policy). If a policy already exists, it will be ignored.
+func Send2PolicyServer(action string, policies model.NetworkPolicies) error {
+	tokenSource, _ := conf.CfConfig.CreateOAuth2TokenSource(conf.CfCtx)
+	token, _ := tokenSource.Token()
+	var httpClient http.Client
+	if conf.SkipSslValidation {
+		// Create new Transport that ignores untrusted CA's
+		clientAllowUntrusted := &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}
+		httpClient = http.Client{Transport: clientAllowUntrusted, Timeout: 30 * time.Second}
+	} else {
+		httpClient = http.Client{Timeout: 30 * time.Second}
+	}
+	policyServerEndpoint := conf.CfApiURL + "/networking/v0/external/policies"
+	if action == conf.ActionUnbind {
+		policyServerEndpoint = conf.CfApiURL + "/networking/v0/external/policies/delete"
+	}
+	chunks := chunkSlice(policies.Policies, 500)
+	for ix, chunk := range chunks {
+		var policiesJsonBA []byte
+		policiesJsonBA, err := json.Marshal(model.NetworkPolicies{Policies: chunk})
+		if err != nil {
+			return fmt.Errorf("failed to marshal policies to json: %s", err)
+		} else {
+			fmt.Printf("chunk %d - sending %d policy update(s) to policy server\n", ix, len(chunk))
+			request, err := http.NewRequest("POST", policyServerEndpoint, bytes.NewBuffer(policiesJsonBA))
+			if err != nil {
+				return fmt.Errorf("The HTTP NewRequest failed with error %s\n", err)
+			} else {
+				request.Header.Set("Authorization", token.AccessToken)
+				request.Header.Set("Content-type", "application/json")
+				startTime := time.Now().UnixNano() / int64(time.Millisecond)
+				response, err := httpClient.Do(request)
+				endTime := time.Now().UnixNano() / int64(time.Millisecond)
+				if err != nil || response.StatusCode != http.StatusOK {
+					if response.StatusCode != http.StatusOK {
+						bodyBytes, _ := io.ReadAll(response.Body)
+						return fmt.Errorf("The HTTP request failed with response code %d: %s\n", response.StatusCode, bodyBytes)
+					} else {
+						return fmt.Errorf("The HTTP request failed with error: %s\n", err)
+					}
+				} else {
+					defer func() { _ = response.Body.Close() }()
+					bodyBytes, _ := io.ReadAll(response.Body)
+					bodyString := string(bodyBytes)
+					fmt.Printf("response in %d ms from %v: Status code: %v: %v\n", endTime-startTime, policyServerEndpoint, response.Status, bodyString)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// chunkSlice - "chop" the give slice in smaller pieces and return them
+func chunkSlice(slice []model.NetworkPolicy, chunkSize int) [][]model.NetworkPolicy {
+	var chunks [][]model.NetworkPolicy
+	for i := 0; i < len(slice); i += chunkSize {
+		end := i + chunkSize
+		if end > len(slice) {
+			end = len(slice)
+		}
+		chunks = append(chunks, slice[i:end])
+	}
+	return chunks
+}
