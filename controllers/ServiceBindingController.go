@@ -186,7 +186,7 @@ func policies4Source(srcName string, srcAppGuid string) (policyLabels []model.Ne
 						if binding.Metadata.Labels[conf.LabelNamePort] != nil && *binding.Metadata.Labels[conf.LabelNamePort] != "0" {
 							destPort, _ = strconv.Atoi(*binding.Metadata.Labels[conf.LabelNamePort])
 						}
-						policy := model.NetworkPolicyLabels{Source: binding.Relationships.App.Data.GUID, SourceName: util.Guid2AppName(srcAppGuid), Destination: binding.Relationships.App.Data.GUID, DestinationName: util.Guid2AppName(binding.Relationships.App.Data.GUID), Protocol: "tcp", Port: destPort}
+						policy := model.NetworkPolicyLabels{Source: srcAppGuid, SourceName: util.Guid2AppName(srcAppGuid), Destination: binding.Relationships.App.Data.GUID, DestinationName: util.Guid2AppName(binding.Relationships.App.Data.GUID), Protocol: "tcp", Port: destPort}
 						policyLabels = append(policyLabels, policy)
 					}
 				}
