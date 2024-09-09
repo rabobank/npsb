@@ -173,7 +173,9 @@ func policies4Source(srcName string, srcAppGuid string) (policyLabels []model.Ne
 				return nil, err
 			} else {
 				if len(bindings) < 1 {
-					fmt.Printf("could not find any service bindings for %d source service instances with label %s:%s\n", len(serviceGUIDs), conf.LabelNameSource, srcName)
+					if conf.Debug {
+						fmt.Printf("could not find any service bindings for %d source service instances with label %s:%s\n", len(serviceGUIDs), conf.LabelNameSource, srcName)
+					}
 				} else {
 					for _, binding := range bindings {
 						destPort := 8080
@@ -201,9 +203,11 @@ func policies4Destination(srcName string, destAppGuid string, port int) (policyL
 		fmt.Printf("failed to list service instances with label %s=%s: %s\n", conf.LabelNameName, srcName, err)
 		return nil, err
 	} else {
-		// this should always be a single instance
+		// this should always be a single instance or none
 		if len(instances) < 1 {
-			fmt.Printf("could not find any service instance with label %s=%s\n", conf.LabelNameName, srcName)
+			if conf.Debug {
+				fmt.Printf("could not find any service instance with label %s=%s\n", conf.LabelNameName, srcName)
+			}
 		} else {
 			credBindingListOption := client.ServiceCredentialBindingListOptions{ServiceInstanceGUIDs: client.Filter{Values: []string{instances[0].GUID}}}
 			if bindings, err := conf.CfClient.ServiceCredentialBindings.ListAll(conf.CfCtx, &credBindingListOption); err != nil {
@@ -211,7 +215,9 @@ func policies4Destination(srcName string, destAppGuid string, port int) (policyL
 				return nil, err
 			} else {
 				if len(bindings) < 1 {
-					fmt.Printf("could not find any service bindings for service instance %s\n", instances[0].GUID)
+					if conf.Debug {
+						fmt.Printf("could not find any service bindings for service instance %s\n", instances[0].GUID)
+					}
 				} else {
 					for _, binding := range bindings {
 						destPort := 8080
