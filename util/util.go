@@ -258,7 +258,7 @@ func Send2PolicyServer(action string, policies model.NetworkPolicies) error {
 		if err != nil {
 			return fmt.Errorf("failed to marshal policies to json: %s", err)
 		} else {
-			fmt.Printf("chunk %d - sending %d policy update(s) to policy server\n", ix, len(chunk))
+			fmt.Printf("chunk %d - sending %d policy %s action(s) to policy server\n", ix, len(chunk), action)
 			request, err := http.NewRequest("POST", policyServerEndpoint, bytes.NewBuffer(policiesJsonBA))
 			if err != nil {
 				return fmt.Errorf("The HTTP NewRequest failed with error %s\n", err)
