@@ -129,16 +129,15 @@ func validateInstanceParameters(serviceInstance model.ServiceInstance) (serviceI
 func instanceWithNameExists(srcName string) bool {
 	// get the plan first
 	var servicePlanGuid string
-	planListOptions := client.ServicePlanListOptions{
-		Names:                client.Filter{Values: []string{"default"}},
-		ServiceOfferingNames: client.Filter{Values: []string{"network-policies"}},
-	}
+	serviceName := conf.Catalog.Services[0].Name
+	planName := conf.Catalog.Services[0].Plans[0].Name
+	planListOptions := client.ServicePlanListOptions{Names: client.Filter{Values: []string{planName}}, ServiceOfferingNames: client.Filter{Values: []string{serviceName}}}
 	if plans, err := conf.CfClient.ServicePlans.ListAll(conf.CfCtx, &planListOptions); err != nil {
 		fmt.Printf("failed to list service plans: %s\n", err)
 		return true
 	} else {
 		if len(plans) == 0 {
-			fmt.Printf("no service plans found\n")
+			fmt.Printf("no service plan found service \"%s\" plan \"%s\"\n", serviceName, planName)
 			return true
 		}
 		servicePlanGuid = plans[0].GUID
@@ -146,16 +145,15 @@ func instanceWithNameExists(srcName string) bool {
 
 	labelSelector := client.LabelSelector{}
 	labelSelector.EqualTo(conf.LabelNameName, fmt.Sprintf("%s", srcName))
-	instanceListOptions := client.ServiceInstanceListOptions{
-		ServicePlanGUIDs: client.Filter{Values: []string{servicePlanGuid}},
-		ListOptions:      &client.ListOptions{LabelSel: labelSelector},
-	}
+	instanceListOptions := client.ServiceInstanceListOptions{ServicePlanGUIDs: client.Filter{Values: []string{servicePlanGuid}}, ListOptions: &client.ListOptions{LabelSel: labelSelector}}
 	if instances, err := conf.CfClient.ServiceInstances.ListAll(conf.CfCtx, &instanceListOptions); err != nil {
 		fmt.Printf("failed to list service instances with label %s=%s: %s\n", conf.LabelNameName, srcName, err)
 		return false
 	} else {
 		if len(instances) > 0 {
-			fmt.Printf("service instance with label %s=%s already exists with name=%s, instance_guid=%s, space_guid=%s\n", conf.LabelNameName, srcName, instances[0].Name, instances[0].GUID, instances[0].Relationships.Space.Data.GUID)
+			for _, instance := range instances {
+				fmt.Printf("a service instance with label %s=%s already exists with name=%s, instance_guid=%s, space_guid=%s\n", conf.LabelNameName, srcName, instance.Name, instance.GUID, instance.Relationships.Space.Data.GUID)
+			}
 			return true
 		}
 	}

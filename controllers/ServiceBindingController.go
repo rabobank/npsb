@@ -143,7 +143,7 @@ func validateBindingParameters(serviceBinding model.ServiceBinding) (serviceBind
 	return serviceBindingParms, nil
 }
 
-// policies4Source - Returns the policy labels for the source service instance with the given name and app guid for the app that is being bound. The destination service instance is identified by the label source=srcName
+// policies4Source - Returns the policy labels for the given source and app guid for the app that is being bound. The service instances are identified by the label source=srcName
 func policies4Source(srcName string, srcAppGuid string) (policyLabels []model.NetworkPolicyLabels, err error) {
 	policyLabels = make([]model.NetworkPolicyLabels, 0)
 	// find all service instances with label source=srcName
@@ -151,13 +151,13 @@ func policies4Source(srcName string, srcAppGuid string) (policyLabels []model.Ne
 	labelSelector.EqualTo(conf.LabelNameSource, fmt.Sprintf("%s", srcName))
 	instanceListOption := client.ServiceInstanceListOptions{ListOptions: &client.ListOptions{LabelSel: labelSelector}}
 	if instances, err := conf.CfClient.ServiceInstances.ListAll(conf.CfCtx, &instanceListOption); err != nil {
-		fmt.Printf("failed to list service instance with label %s=%s: %s\n", conf.LabelNameSource, srcName, err)
+		fmt.Printf("failed to list service instances with label %s=%s: %s\n", conf.LabelNameSource, srcName, err)
 		return nil, err
 	} else {
 		// can be multiple (many) instances
 		if len(instances) < 1 {
 			if conf.Debug {
-				fmt.Printf("could not find any source service instance with label %s=%s\n", conf.LabelNameName, srcName)
+				fmt.Printf("could not find any service instances with label %s=%s\n", conf.LabelNameSource, srcName)
 			}
 		} else {
 			serviceGUIDs := make([]string, 0)
@@ -190,7 +190,7 @@ func policies4Source(srcName string, srcAppGuid string) (policyLabels []model.Ne
 	return policyLabels, nil
 }
 
-// policies4Destination - Returns the policy labels for the destination service instance with the given name and app guid for the app that is being bound. The source service instance is identified by the label name=srcName
+// policies4Destination - Returns the policy labels for the service instance with the given name and app guid for the app that is being bound. The source service instance is identified by the label name=srcName
 func policies4Destination(srcName string, destAppGuid string, port int) (policyLabels []model.NetworkPolicyLabels, err error) {
 	policyLabels = make([]model.NetworkPolicyLabels, 0)
 	// find all service instances with label name=srcName
@@ -198,12 +198,12 @@ func policies4Destination(srcName string, destAppGuid string, port int) (policyL
 	labelSelector.EqualTo(conf.LabelNameName, fmt.Sprintf("%s", srcName))
 	instanceListoption := client.ServiceInstanceListOptions{ListOptions: &client.ListOptions{LabelSel: labelSelector}}
 	if instances, err := conf.CfClient.ServiceInstances.ListAll(conf.CfCtx, &instanceListoption); err != nil {
-		fmt.Printf("failed to list destination service instance with label %s=%s: %s\n", conf.LabelNameName, srcName, err)
+		fmt.Printf("failed to list service instances with label %s=%s: %s\n", conf.LabelNameName, srcName, err)
 		return nil, err
 	} else {
 		// this should always be a single instance
 		if len(instances) < 1 {
-			fmt.Printf("could not find any destination service instance with label %s=%s\n", conf.LabelNameName, srcName)
+			fmt.Printf("could not find any service instance with label %s=%s\n", conf.LabelNameName, srcName)
 		} else {
 			credBindingListOption := client.ServiceCredentialBindingListOptions{ServiceInstanceGUIDs: client.Filter{Values: []string{instances[0].GUID}}}
 			if bindings, err := conf.CfClient.ServiceCredentialBindings.ListAll(conf.CfCtx, &credBindingListOption); err != nil {
@@ -211,7 +211,7 @@ func policies4Destination(srcName string, destAppGuid string, port int) (policyL
 				return nil, err
 			} else {
 				if len(bindings) < 1 {
-					fmt.Printf("could not find any service bindings for service instance %s with label %s:%s\n", instances[0].GUID, conf.LabelNameName, srcName)
+					fmt.Printf("could not find any service bindings for service instance %s\n", instances[0].GUID)
 				} else {
 					for _, binding := range bindings {
 						destPort := 8080
