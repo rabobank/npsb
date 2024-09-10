@@ -69,6 +69,7 @@ func CreateOrUpdateServiceInstance(w http.ResponseWriter, r *http.Request) {
 }
 
 func DeleteServiceInstance(w http.ResponseWriter, r *http.Request) {
+	_ = r // prevent compiler warning
 	util.WriteHttpResponse(w, http.StatusOK, model.DeleteServiceInstanceResponse{})
 }
 

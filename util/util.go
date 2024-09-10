@@ -18,11 +18,6 @@ import (
 	"github.com/rabobank/npsb/conf"
 )
 
-const (
-	cfCertPathEnv = "CF_INSTANCE_CERT"
-	cfKeyPathEnv  = "CF_INSTANCE_KEY"
-)
-
 var guid2appNameCache = make(map[string]CacheEntry)
 var cacheCleanerStarted = false
 
