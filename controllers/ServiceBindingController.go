@@ -54,10 +54,10 @@ func CreateServiceBinding(w http.ResponseWriter, r *http.Request) {
 			util.WriteHttpResponse(w, http.StatusBadRequest, model.BrokerError{Error: "FAILED", Description: fmt.Sprintf("service instance (metadata.labels) for id %s not found", serviceBinding.ServiceInstanceId), InstanceUsable: false, UpdateRepeatable: false})
 		} else {
 			port, _ := strconv.Atoi(portStr)
-			if numProcessedPolicies, err := createOrDeletePolicies(conf.ActionBind, serviceInstance, serviceBinding.AppGuid, port); err != nil {
+			if _, err = createOrDeletePolicies(conf.ActionBind, serviceInstance, serviceBinding.AppGuid, port); err != nil {
 				util.WriteHttpResponse(w, http.StatusBadRequest, model.BrokerError{Error: "FAILED", Description: fmt.Sprintf("failed to create policies for service instance %s: %s", serviceBinding.ServiceInstanceId, err), InstanceUsable: false, UpdateRepeatable: false})
 			} else {
-				util.WriteHttpResponse(w, http.StatusOK, model.CreateServiceBindingResponse{Result: fmt.Sprintf("bind completed, created %d policies", numProcessedPolicies)})
+				util.WriteHttpResponse(w, http.StatusCreated, model.CreateServiceBindingResponse{})
 			}
 		}
 	}
@@ -80,10 +80,10 @@ func DeleteServiceBinding(w http.ResponseWriter, r *http.Request) {
 				util.WriteHttpResponse(w, http.StatusBadRequest, model.BrokerError{Error: "FAILED", Description: fmt.Sprintf("service instance (metadata.labels) for id %s not found", serviceCredentialBinding.Relationships.ServiceInstance.Data.GUID), InstanceUsable: false, UpdateRepeatable: false})
 			} else {
 				port, _ := strconv.Atoi(*serviceCredentialBinding.Metadata.Labels[conf.LabelNamePort])
-				if numProcessedPolicies, err := createOrDeletePolicies(conf.ActionUnbind, serviceInstance, serviceCredentialBinding.Relationships.App.Data.GUID, port); err != nil {
+				if _, err = createOrDeletePolicies(conf.ActionUnbind, serviceInstance, serviceCredentialBinding.Relationships.App.Data.GUID, port); err != nil {
 					util.WriteHttpResponse(w, http.StatusBadRequest, model.BrokerError{Error: "FAILED", Description: fmt.Sprintf("failed to create policies for service instance %s: %s", serviceCredentialBinding.Relationships.ServiceInstance.Data.GUID, err), InstanceUsable: false, UpdateRepeatable: false})
 				} else {
-					util.WriteHttpResponse(w, http.StatusOK, model.CreateServiceBindingResponse{Result: fmt.Sprintf("bind completed, created %d policies", numProcessedPolicies)})
+					util.WriteHttpResponse(w, http.StatusOK, model.DeleteServiceBindingResponse{})
 				}
 			}
 		}

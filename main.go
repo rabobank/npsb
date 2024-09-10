@@ -3,10 +3,10 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/rabobank/npsb/security"
 	"os"
 
 	"github.com/rabobank/npsb/conf"
-	"github.com/rabobank/npsb/security"
 	"github.com/rabobank/npsb/server"
 	"github.com/rabobank/npsb/util"
 )
@@ -16,9 +16,10 @@ func main() {
 
 	conf.EnvironmentComplete()
 
-	util.ResolveCredhubCredentials()
-
-	security.Initialize()
+	if err := security.Initialize(); err != nil {
+		fmt.Printf("failed to initialize security: %s\n", err)
+		os.Exit(8)
+	}
 
 	util.InitCFClient()
 

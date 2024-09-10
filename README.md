@@ -8,7 +8,6 @@ The configuration for the broker consists of the following environment variables
 * **DEBUG** - Debugging on or off, default is false.
 * **HTTP_TIMEOUT** - Timeout in seconds for connecting to either UAA or Credhub endpoint, default is 10.
 * **CLIENT_ID** - The uaa client to use for logging in to credhub, should have credhub_admin scope.
-* **BROKER_USER** - The userid for the broker (should be specified issuing the _cf create-service-broker_ cmd).
 * **CATALOG_DIR** - The directory where to find the cf catalog for the broker, the directory should contain a file called catalog.json.
 * **LISTEN_PORT** - The port that the broker should listen on, default is 8080.
 * **CFAPI_URL** - The URL of the cf api (i.e. https://api.sys.mydomain.com).
@@ -40,14 +39,16 @@ cf enable-service-access npsb
 ```
 
 ## Creating the credentials in the runtime credhub
-The broker has the envvar CREDS_PATH which points to an entry in the runtime credhub where the following 2 credentials should be stored:
-* BROKER_PASSWORD - The password for the broker (should be specified when issuing the _cf create-service-broker_ cmd).
-* CLIENT_SECRET - The password for CLIENT_ID
+The broker is reading credentials from credhub, so you need to create a credhub service instance named npsb-credentials: 
+```
+cf create-service credhub default npsb-credentials -c '{ "brokerUser": "<broker-user>", "brokerPassword": "<broker-password>", "clientId": "<client-id>" , "clientSecret": "<clientsecret>" }'
+```
 
-To create the proper credhub entry in the runtime credhub, use the following sample command: 
-```
-credhub set -n /brokers/npsb/credentials --type json --value='{ "BROKER_PASSWORD": "pswd1", "CLIENT_SECRET": "pswd2" }'
-```
+As a fallback (not recommended for security) you can create these envvars:
+* BROKER_USER - The user you created with the cf create-service-broker command
+* BROKER_PASSWORD - The password for the broker (should be specified when issuing the _cf create-service-broker_ cmd).
+* CLIENT_ID - The uaa client_id used to query the cloud controller and to create network policies
+* CLIENT_SECRET - The password for CLIENT_ID
 
 ## CC Queries to determine the needed network policies
 

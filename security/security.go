@@ -9,12 +9,12 @@ import (
 	"github.com/rabobank/npsb/conf"
 )
 
-func Initialize() {
+func Initialize() error {
 	basicChallenge = `Basic realm="` + conf.BasicAuthRealm + `"`
 	basicCredentials.username = conf.BrokerUser
 	basicCredentials.password = conf.BrokerPassword
 
-	initializeUaa()
+	return initializeUaa()
 }
 
 func MatchPrefix(pathPrefix string) MatchBuilder {

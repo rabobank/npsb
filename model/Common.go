@@ -64,14 +64,3 @@ type CredhubCredentials struct {
 		} `json:"value"`
 	} `json:"data"`
 }
-
-//const (
-//	StatusSucceeded  = "succeeded"
-//	StatusFailed     = "failed"
-//	StatusInProgress = "in progress"
-//)
-
-//type LastOperation struct {
-//	State       string `json:"state"`
-//	Description string `json:"description"`
-//}

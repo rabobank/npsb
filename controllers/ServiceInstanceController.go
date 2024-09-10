@@ -44,7 +44,6 @@ func CreateOrUpdateServiceInstance(w http.ResponseWriter, r *http.Request) {
 	labels[conf.LabelNameDesc] = &serviceInstanceParms.Description
 	labels[conf.LabelNameScope] = &serviceInstanceParms.Scope
 	labels[conf.LabelNameSource] = &serviceInstanceParms.Source
-	metadata := resource.Metadata{Labels: labels}
 
 	serviceInstanceUpdate := resource.ServiceInstanceManagedUpdate{Metadata: &resource.Metadata{Labels: labels}}
 
@@ -65,14 +64,12 @@ func CreateOrUpdateServiceInstance(w http.ResponseWriter, r *http.Request) {
 
 	// If we respond with StatusAccepted, the CC will poll the last_operation endpoint, but the above routine cannot update the instance, it gets (CF-AsyncServiceInstanceOperationInProgress|60016):
 	// So, we are cheating here and respond with StatusOk, and the CC will not poll the last_operation endpoint, and we take the small risk that the instance is not (properly) updated by the above routine.
-	util.WriteHttpResponse(w, http.StatusOK, model.CreateServiceInstanceResponse{ServiceId: serviceInstance.ServiceId, PlanId: serviceInstance.PlanId, Metadata: &metadata})
+	util.WriteHttpResponse(w, http.StatusCreated, model.CreateServiceInstanceResponse{})
 	return
 }
 
 func DeleteServiceInstance(w http.ResponseWriter, r *http.Request) {
-	serviceInstanceId := mux.Vars(r)["service_instance_guid"]
-	response := model.DeleteServiceInstanceResponse{Result: fmt.Sprintf("Service instance %s deleted", serviceInstanceId)}
-	util.WriteHttpResponse(w, http.StatusOK, response)
+	util.WriteHttpResponse(w, http.StatusOK, model.DeleteServiceInstanceResponse{})
 }
 
 func validateInstanceParameters(serviceInstance model.ServiceInstance) (serviceInstanceParms model.ServiceInstanceParameters, err error) {
