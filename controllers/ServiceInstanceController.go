@@ -129,7 +129,7 @@ func instanceWithNameExists(srcName string) bool {
 	var servicePlanGuid string
 	serviceName := conf.Catalog.Services[0].Name
 	planName := conf.Catalog.Services[0].Plans[0].Name
-	planListOptions := client.ServicePlanListOptions{Names: client.Filter{Values: []string{planName}}, ServiceOfferingNames: client.Filter{Values: []string{serviceName}}}
+	planListOptions := client.ServicePlanListOptions{ListOptions: &client.ListOptions{}, Names: client.Filter{Values: []string{planName}}, ServiceOfferingNames: client.Filter{Values: []string{serviceName}}}
 	if plans, err := conf.CfClient.ServicePlans.ListAll(conf.CfCtx, &planListOptions); err != nil {
 		fmt.Printf("failed to list service plans: %s\n", err)
 		return true
