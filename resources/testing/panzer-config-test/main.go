@@ -69,7 +69,7 @@ func generateCreateAndBinds(fullPath string, info os.FileInfo, err error) error 
 						//createBuffer.WriteString(fmt.Sprintf("  cf push -f ../deploy-test-apps/cf-statics/manifest.yml -p ../deploy-test-apps/cf-statics \"%s\" --no-start\n", targetApp))
 						deleteBuffer.WriteString(fmt.Sprintf("  cf d -f -r \"%s\"\n", targetApp))
 						createBuffer.WriteString(fmt.Sprintf("  cf map-route \"%s\" apps.internal --hostname \"%s\"\n", targetApp, targetApp))
-						for fromIndex, _ := range target.From {
+						for fromIndex := range target.From {
 							createBuffer.WriteString(fmt.Sprintf(" cf cs network-policies default dest%d-%d -c '{\"type\":\"destination\",\"source\":\"%s-src%d-%d\"}'\n", targetIndex, fromIndex, spaceName, targetIndex, fromIndex))
 							deleteBuffer.WriteString(fmt.Sprintf(" cf ds -f dest%d-%d\n", targetIndex, fromIndex))
 							if target.Port == 0 {
