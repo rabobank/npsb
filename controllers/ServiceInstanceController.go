@@ -108,7 +108,7 @@ func validateInstanceParameters(serviceInstance model.ServiceInstance) (serviceI
 			return serviceInstanceParms, fmt.Errorf("parameter \"%s\" is missing or invalid, should be \"%s\" or \"%s\"", conf.LabelNameScope, conf.LabelValueScopeGlobal, conf.LabelValueScopeLocal)
 		}
 		if instanceWithNameExists(serviceInstanceParms.Name) {
-			return serviceInstanceParms, fmt.Errorf("a network-policies service with label \"%s\"=%s is already taken", conf.LabelNameName, serviceInstanceParms.Name)
+			return serviceInstanceParms, fmt.Errorf("a network-policies service with label \"%s\"=\"%s\" is already taken", conf.LabelNameName, serviceInstanceParms.Name)
 		}
 	}
 

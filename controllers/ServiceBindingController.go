@@ -153,7 +153,7 @@ func policies4Source(srcName string, srcAppGuid string) (policyLabels []model.Ne
 	// find all service instances with label source=srcName
 	labelSelector := client.LabelSelector{}
 	labelSelector.EqualTo(conf.LabelNameSource, fmt.Sprintf("%s", srcName))
-	instanceListOption := client.ServiceInstanceListOptions{ListOptions: &client.ListOptions{LabelSel: labelSelector}}
+	instanceListOption := client.ServiceInstanceListOptions{ListOptions: &client.ListOptions{LabelSel: labelSelector, PerPage: 5000}}
 	if instances, err := conf.CfClient.ServiceInstances.ListAll(conf.CfCtx, &instanceListOption); err != nil {
 		fmt.Printf("failed to list service instances with label %s=%s: %s\n", conf.LabelNameSource, srcName, err)
 		return nil, err
