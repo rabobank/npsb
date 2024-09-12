@@ -19,3 +19,8 @@ for A in appI appJ
 do
   cf delete -f -r "$A"
 done
+cf t -o it4it-org -s spaceE
+for A in appL appM appN appO
+do
+  cf delete -f -r "$A"
+done

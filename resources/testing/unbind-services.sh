@@ -15,3 +15,9 @@ cf t -o it4it-org -s spaceD
 cf unbind-service appI dest2
 cf unbind-service appJ dest2
 cf unbind-service appJ dest3
+cf t -o it4it-org -s spaceE
+cf unbind-service appL src3
+cf unbind-service appM src3
+cf unbind-service appN dest4
+cf unbind-service appN src4
+cf unbind-service appO dest5

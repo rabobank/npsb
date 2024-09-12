@@ -14,7 +14,7 @@ type NetworkPolicyLabels struct {
 }
 
 func (np NetworkPolicyLabels) String() string {
-	return fmt.Sprintf("%s (%s) => %s (%s):%d", np.SourceName, np.Source, np.DestinationName, np.Destination, np.Port)
+	return fmt.Sprintf("%s (%s) => %s (%s):%d (%s)", np.SourceName, np.Source, np.DestinationName, np.Destination, np.Port, np.Protocol)
 }
 
 type NetworkPolicies struct {

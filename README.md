@@ -23,7 +23,8 @@ Instance create parameters:
 * **source** - The name of the source service instance that should be linked to this instance, only applicable for destination instances. This is a required parameter. This is a required parameter for type=destination instances.
 
 Instance bind parameters:
-* **port** - The port to use for the network policy (i.e. the port the application listens on). This is a optional parameter for type=destination, default is 8080.
+* **port** - The port to use for the network policy (i.e. the port the application listens on). This is an optional parameter for type=destination, default is 8080.
+* **protocol** - The protocol to use for the network policy (i.e. tcp or udp). This is an optional parameter for type=destination, default is tcp.
 
 ## Deploying/installing the broker
 
@@ -77,5 +78,6 @@ GET /v3/service_credential_bindings?service_instance_guids=guid1
 ````
 Then we can create network policies for each of these service bindings, where:
 * source is the guid of the app that bound to the type=source service instance (.relationships.app.data.guid)
-* targets is the guid of the app that is currently being bound to the type=destination service instance
+* destination is the guid of the app that is currently being bound to the type=destination service instance
 * port is optional, can be derived from the service binding of the type=destination service bindings (metadata.labels.rabobank.com/npsb.dest.port), default is 8080
+* protocol is optional, can be derived from the service binding of the type=destination service bindings (metadata.labels.rabobank.com/npsb.dest.protocol), default is tcp
