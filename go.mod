@@ -12,6 +12,8 @@ require (
 	github.com/cloudfoundry-community/go-cfenv v1.18.0
 	github.com/cloudfoundry-community/go-uaa v0.3.3
 	github.com/cloudfoundry/go-cfclient/v3 v3.0.0-alpha.9
+	github.com/golang-jwt/jwt v3.2.2+incompatible
+	github.com/gorilla/context v1.1.2
 	github.com/gorilla/mux v1.8.1
 	gopkg.in/yaml.v3 v3.0.1
 )

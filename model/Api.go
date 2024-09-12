@@ -1,15 +1,17 @@
 package model
 
-import (
-	"time"
-)
-
-type DeleteResponse struct {
-	IgnoredKeys []string `json:"ignored"`
+// SourcesResponseList is the response from the /api/sources endpoint
+type SourcesResponseList struct {
+	SourcesResponses []SourceResponse `json:"source_responses"`
+}
+type SourceResponse struct {
+	Source string `json:"source"`
+	Scope  string `json:"scope"`
+	Org    string `json:"org"`
+	Space  string `json:"space"`
 }
 
-type SecretsVersionKeys struct {
-	VersionCreatedAt time.Time `json:"timestamp"`
-	ID               string    `json:"id"`
-	Keys             []string  `json:"keys"`
+// GenericRequest - a generic request object
+type GenericRequest struct {
+	SpaceGUID string `json:"spaceguid"`
 }

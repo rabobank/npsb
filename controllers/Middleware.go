@@ -1,12 +1,16 @@
 package controllers
 
 import (
-	"encoding/base64"
+	"crypto/rsa"
 	"encoding/json"
 	"fmt"
+	"github.com/rabobank/npsb/model"
+	"io"
 	"net/http"
-	"strings"
+	"time"
 
+	"github.com/golang-jwt/jwt"
+	"github.com/gorilla/context"
 	"github.com/rabobank/npsb/conf"
 	"github.com/rabobank/npsb/util"
 )
@@ -38,39 +42,78 @@ func AddHeadersMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// AuditLogMiddleware - We are looking for the X-Broker-Api-Request-Identity header, see https://github.com/openservicebrokerapi/servicebroker/blob/v2.16/spec.md#originating-identity
-func AuditLogMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// only /v2 requests are meant for the broker functionality
-		if strings.HasPrefix(r.URL.Path, "/v2") {
-			origIdentity := "UNKNOWN"
-			var jsonObject = OrigIdentity{}
-			if identityHeaders := r.Header[IdentityHeader]; identityHeaders != nil && len(identityHeaders) > 0 {
-				identityHeader := identityHeaders[0]
-				if words := strings.Split(identityHeader, " "); len(words) == 2 {
-					if decodedString, err := base64.StdEncoding.DecodeString(words[1]); decodedString != nil && err == nil {
-						if err = json.Unmarshal(decodedString, &jsonObject); err == nil {
-							if cfUser, err := conf.CfClient.Users.Get(conf.CfCtx, jsonObject.UserID); err == nil {
-								origIdentity = cfUser.Username
-							} else {
-								fmt.Printf("failed to cf lookup user with guid %s: %s\n", jsonObject.UserID, err)
-							}
-						} else {
-							fmt.Printf("failed to parse %s header: %s\n", IdentityHeader, err)
-						}
-					} else {
-						fmt.Printf("failed to base64 decode %s header: %s\n", IdentityHeader, err)
-					}
-				}
-			}
-			fmt.Printf("%s request: %s by user %s\n", r.Method, r.RequestURI, origIdentity)
-		}
-
-		// Call the next handler, which can be another middleware in the chain, or the final handler.
-		next.ServeHTTP(w, r)
-	})
-}
-
 type OrigIdentity struct {
 	UserID string `json:"user_id"`
+}
+
+func CheckJWTMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if accessToken, err := util.GetAccessTokenFromRequest(r); err == nil {
+			var token *jwt.Token
+			token, err = jwt.Parse(accessToken, func(token *jwt.Token) (interface{}, error) {
+				if _, ok := token.Method.(*jwt.SigningMethodRSA); ok {
+				} else {
+					return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+				}
+
+				uaaPubKeyLocation := token.Header["jku"]
+				if !util.IsValidJKU(fmt.Sprintf("%s", uaaPubKeyLocation)) {
+					return nil, fmt.Errorf("invalid jku parameter in JWT")
+				}
+				util.PrintfIfDebug("getting uaa pub key from: %s\n", uaaPubKeyLocation)
+				transport := http.Transport{IdleConnTimeout: time.Second}
+				client := http.Client{Timeout: time.Duration(5) * time.Second, Transport: &transport}
+				var resp *http.Response
+				if resp, err = client.Get(fmt.Sprintf("%v", uaaPubKeyLocation)); err != nil {
+					return nil, err
+				} else {
+					if resp == nil {
+						return nil, fmt.Errorf("empty response from uaa server while getting /token_keys")
+					}
+					var bodyBytes []byte
+					if bodyBytes, err = io.ReadAll(resp.Body); err != nil {
+						return nil, err
+					} else {
+						var uaaPubKeys model.TokenKeys
+						if err = json.Unmarshal(bodyBytes, &uaaPubKeys); err != nil {
+							return nil, err
+						}
+						var publicKey []byte
+						for _, tokenKey := range uaaPubKeys.Keys {
+							if tokenKey.Kid == token.Header["kid"] {
+								publicKey = []byte(tokenKey.Value)
+							}
+						}
+						var pubKey *rsa.PublicKey
+						if pubKey, err = jwt.ParseRSAPublicKeyFromPEM(publicKey); err != nil {
+							return nil, err
+						} else {
+							return pubKey, nil
+						}
+					}
+				}
+			})
+			if err != nil {
+				fmt.Printf("failed to validate accessToken: %s\n", err)
+			} else {
+				if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
+					for mapKey := range claims {
+						if mapKey == "user_name" {
+							context.Set(r, "jwt", *token) // we use it in subsequent handlers
+							util.PrintfIfDebug("successful login for user %s\n", claims[mapKey])
+						}
+					}
+					// Call the next handler, which can be another middleware in the chain, or the final handler.
+					next.ServeHTTP(w, r)
+					return
+				} else {
+					fmt.Println("access token is invalid")
+				}
+			}
+		} else {
+			fmt.Println("access token is missing")
+		}
+		w.WriteHeader(401)
+		_, _ = w.Write([]byte("Unauthorised.\n"))
+	})
 }
