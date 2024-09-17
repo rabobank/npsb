@@ -15,8 +15,6 @@ import (
 	"github.com/rabobank/npsb/util"
 )
 
-//var instanceOperations = make(map[string]string) // key: serviceInstanceId, value: InProgress/Succeeded/Failed
-
 func Catalog(w http.ResponseWriter, r *http.Request) {
 	fmt.Printf("get service broker catalog from %s...\n", r.RemoteAddr)
 	util.WriteHttpResponse(w, http.StatusOK, conf.Catalog)
@@ -41,11 +39,12 @@ func CreateOrUpdateServiceInstance(w http.ResponseWriter, r *http.Request) {
 	labels := make(map[string]*string)
 	labels[conf.LabelNameType] = &serviceInstanceParms.Type
 	labels[conf.LabelNameName] = &serviceInstanceParms.Name
-	labels[conf.LabelNameDesc] = &serviceInstanceParms.Description
 	labels[conf.LabelNameScope] = &serviceInstanceParms.Scope
 	labels[conf.LabelNameSource] = &serviceInstanceParms.Source
+	annotations := make(map[string]*string)
+	annotations[conf.AnnotationNameDesc] = &serviceInstanceParms.Description
 
-	serviceInstanceUpdate := resource.ServiceInstanceManagedUpdate{Metadata: &resource.Metadata{Labels: labels}}
+	serviceInstanceUpdate := resource.ServiceInstanceManagedUpdate{Metadata: &resource.Metadata{Labels: labels, Annotations: annotations}}
 
 	go func() {
 		time.Sleep(3 * time.Second)
@@ -95,11 +94,8 @@ func validateInstanceParameters(serviceInstance model.ServiceInstance) (serviceI
 		if !parameterValueRegex.MatchString(serviceInstanceParms.Name) {
 			return serviceInstanceParms, fmt.Errorf("parameter \"%s\" is invalid, should match regex %s", conf.LabelNameName, parameterValueRegex.String())
 		}
-		if serviceInstanceParms.Description == "" {
-			return serviceInstanceParms, fmt.Errorf("parameter \"%s\" is missing", conf.LabelNameDesc)
-		}
-		if !parameterValueRegex.MatchString(serviceInstanceParms.Description) {
-			return serviceInstanceParms, fmt.Errorf("parameter \"%s\" is invalid, should match regex %s", conf.LabelNameDesc, parameterValueRegex.String())
+		if len(serviceInstanceParms.Description) > 128 {
+			return serviceInstanceParms, fmt.Errorf("parameter \"%s\" is invalid, maximum length is 128, you have %d", conf.AnnotationNameDesc, len(serviceInstanceParms.Description))
 		}
 		if serviceInstanceParms.Scope == "" {
 			return serviceInstanceParms, fmt.Errorf("parameter \"%s\" is missing", conf.LabelNameScope)

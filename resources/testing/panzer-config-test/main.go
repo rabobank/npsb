@@ -53,7 +53,7 @@ func generateCreateAndBinds(fullPath string, info os.FileInfo, err error) error 
 				for targetIndex, target := range spaceConfig.Targets {
 					for fromIndex, from := range target.From {
 						if from.Org == "" && from.Space == "" {
-							createBuffer.WriteString(fmt.Sprintf(" cf cs network-policies default src%d-%d -c '{\"type\":\"source\",\"name\":\"%s-src%d-%d\",\"scope\":\"local\",\"description\":\"doe_iets_leuks\"}'\n", targetIndex, fromIndex, spaceName, targetIndex, fromIndex))
+							createBuffer.WriteString(fmt.Sprintf(" cf cs network-policies default src%d-%d -c '{\"type\":\"source\",\"name\":\"%s-src%d-%d\",\"scope\":\"local\",\"description\":\"doe iets leuks\"}'\n", targetIndex, fromIndex, spaceName, targetIndex, fromIndex))
 							deleteBuffer.WriteString(fmt.Sprintf(" cf ds -f src%d-%d\n", targetIndex, fromIndex))
 							for _, fromApp := range from.Apps {
 								createBuffer.WriteString(fmt.Sprintf("  cf push -f ../deploy-test-apps/cf-statics/manifest.yml -p ../deploy-test-apps/cf-statics \"%s\"\n", fromApp))

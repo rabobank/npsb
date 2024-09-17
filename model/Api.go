@@ -4,6 +4,7 @@ package model
 type SourcesResponseList struct {
 	SourcesResponses []SourceResponse `json:"source_responses"`
 }
+
 type SourceResponse struct {
 	Source string `json:"source"`
 	Scope  string `json:"scope"`

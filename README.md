@@ -18,7 +18,7 @@ Describe the instance create parameters and the bind parameters here.
 Instance create parameters:
 * **type** - This can be either "source" or "destination", indicating the "direction" of the policy. This is a required parameter.
 * **name** - The logical name to assign to the instance, only applicable for source instance. This name can be queried later to get a list of all source policies that can be used by type=destination instances. This is a required parameter for type=source instances.
-* **description** - The description of the instance, only applicable for source instances. This description can be queried later to get a list of all source policies that can be used by type=destination instances. This is a required parameter for type=source instances.
+* **description** - The description of the instance, only applicable for source instances. This description is added as an annotation to the service instance. This is an optional parameter for type=source instances.
 * **scope** - Can be either local or global. Local scope means only visible to the org/space where the policy is created, global means visible to all orgs/spaces. This is a required parameter for type=source instances.
 * **source** - The name of the source service instance that should be linked to this instance, only applicable for destination instances. This is a required parameter. This is a required parameter for type=destination instances.
 

@@ -39,7 +39,7 @@ var (
 	CfClient      *client.Client
 	CfConfig      *config.Config
 	CfCtx         = context.Background()
-	AllLabelNames = []string{LabelNameType, LabelNameName, LabelNameDesc, LabelNameScope, LabelNameSource, LabelNamePort, LabelNameProtocol}
+	AllLabelNames = []string{LabelNameType, LabelNameName, LabelNameScope, LabelNameSource, LabelNamePort, LabelNameProtocol}
 )
 
 const (
@@ -48,7 +48,7 @@ const (
 	LabelValueTypeSrc     = "source"
 	LabelValueTypeDest    = "destination"
 	LabelNameName         = "npsb.source.name"
-	LabelNameDesc         = "npsb.source.description"
+	AnnotationNameDesc    = "npsb.source.description"
 	LabelNameScope        = "npsb.source.scope"
 	LabelValueScopeLocal  = "local"
 	LabelValueScopeGlobal = "global"
