@@ -11,7 +11,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/rabobank/npsb/httpHelper"
 	"github.com/rabobank/npsb/model"
 )
 
@@ -101,19 +100,8 @@ func EnvironmentComplete() {
 	}
 
 	if UaaApiURL == "" {
-		if content, e := httpHelper.Request(CfApiURL).Accepting("application/json").Get(); e != nil {
-			fmt.Println("Unable to get CF API endpoints:", e)
-			envComplete = false
-		} else {
-			var endpoints model.CfApiEndpoints
-			if e = json.Unmarshal(content, &endpoints); e != nil {
-				fmt.Println("Unable to unmarshal CF API endpoints:", e)
-				envComplete = false
-			} else {
-				UaaApiURL = endpoints.Links.Uaa.Href
-				fmt.Println("UAA endpoint:", UaaApiURL)
-			}
-		}
+		UaaApiURL = strings.Replace(CfApiURL, "api", "uaa", 1)
+		fmt.Println("UAA endpoint:", UaaApiURL)
 	}
 
 	if strings.EqualFold(SkipSslValidationStr, "true") {

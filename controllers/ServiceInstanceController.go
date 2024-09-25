@@ -138,7 +138,7 @@ func instanceWithNameExists(srcName string) bool {
 	}
 
 	labelSelector := client.LabelSelector{}
-	labelSelector.EqualTo(conf.LabelNameName, fmt.Sprintf("%s", srcName))
+	labelSelector.EqualTo(conf.LabelNameName, srcName)
 	instanceListOptions := client.ServiceInstanceListOptions{ServicePlanGUIDs: client.Filter{Values: []string{servicePlanGuid}}, ListOptions: &client.ListOptions{LabelSel: labelSelector}}
 	if instances, err := conf.CfClient.ServiceInstances.ListAll(conf.CfCtx, &instanceListOptions); err != nil {
 		fmt.Printf("failed to list service instances with label %s=%s: %s\n", conf.LabelNameName, srcName, err)
