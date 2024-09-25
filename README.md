@@ -1,4 +1,4 @@
-## Network Policy Service Broker
+# Network Policy Service Broker
 
 A Cloud Foundry Service Broker that can create/delete CF network policies based on binds by applications.
 
@@ -50,7 +50,7 @@ As a fallback if you don't use the above credhub service instance (not recommend
 
 ## CC Queries to determine the needed network policies
 
-# Service bind on type=source instances
+### Service bind on type=source instances
 When doing a service bind on a type=source service instance, the broker should first get a list of all type=target service instances that have the label source=<srcname> where <srcname> is the name of the source service instance:
 ````
 GET /v3/service_instances?label_selector=npsb.type=destination,npsb.dest.source=srcapp1
@@ -64,7 +64,7 @@ Then we can create network policies for each of these service bindings, where:
 * targets is a list of guids of the apps that are being bound to the type=destination service instance (.relationships.app.data.guid)
 * port is optional, can be derived from the service binding of the type=destination service bindings (metadata.labels.npsb.dest.port), default is 8080
 
-# Service bind on type=destination instances
+### Service bind on type=destination instances
 When doing a service bind on a type=destination service instance, the broker should first get the service instance that has the label name=<srcname> where <srcname> comes from the source label of the current destination binding.
 ````
 GET /v3/service_instances?label_selector=npsb.type=source,npsb.source.name=srcapp1
