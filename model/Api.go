@@ -6,10 +6,11 @@ type SourcesResponseList struct {
 }
 
 type SourceResponse struct {
-	Source string `json:"source"`
-	Scope  string `json:"scope"`
-	Org    string `json:"org"`
-	Space  string `json:"space"`
+	Source      string `json:"source"`
+	Scope       string `json:"scope"`
+	Org         string `json:"org"`
+	Space       string `json:"space"`
+	Description string `json:"description"`
 }
 
 // GenericRequest - a generic request object

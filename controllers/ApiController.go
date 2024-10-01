@@ -33,7 +33,8 @@ func GetSources(w http.ResponseWriter, r *http.Request) {
 					if name, ok := instance.Metadata.Labels[conf.LabelNameName]; ok {
 						space := util.GetSpaceByGuidCached(instance.Relationships.Space.Data.GUID)
 						org := util.GetOrgByGuidCached(space.Relationships.Organization.Data.GUID)
-						sourcesList.SourcesResponses = append(sourcesList.SourcesResponses, model.SourceResponse{Source: *name, Org: org.Name, Space: space.Name, Scope: conf.LabelValueScopeGlobal})
+						desc := instance.Metadata.Annotations[conf.AnnotationNameDesc]
+						sourcesList.SourcesResponses = append(sourcesList.SourcesResponses, model.SourceResponse{Source: *name, Org: org.Name, Space: space.Name, Scope: conf.LabelValueScopeGlobal, Description: *desc})
 					}
 				}
 				util.PrintfIfDebug("found %d global sources\n", len(sourcesList.SourcesResponses))
@@ -57,7 +58,8 @@ func GetSources(w http.ResponseWriter, r *http.Request) {
 					if name, ok := instance.Metadata.Labels[conf.LabelNameName]; ok {
 						space := util.GetSpaceByGuidCached(instance.Relationships.Space.Data.GUID)
 						org := util.GetOrgByGuidCached(space.Relationships.Organization.Data.GUID)
-						sourcesList.SourcesResponses = append(sourcesList.SourcesResponses, model.SourceResponse{Source: *name, Org: org.Name, Space: space.Name, Scope: conf.LabelValueScopeLocal})
+						desc := instance.Metadata.Annotations[conf.AnnotationNameDesc]
+						sourcesList.SourcesResponses = append(sourcesList.SourcesResponses, model.SourceResponse{Source: *name, Org: org.Name, Space: space.Name, Scope: conf.LabelValueScopeLocal, Description: *desc})
 					}
 				}
 				util.PrintfIfDebug("found %d local sources\n", len(sourcesList.SourcesResponses))
