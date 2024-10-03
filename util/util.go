@@ -131,7 +131,7 @@ func Guid2AppName(guid string) string {
 			for {
 				time.Sleep(5 * time.Second)
 				for key, value := range guid2appNameCache {
-					if time.Since(value.created) > 5*time.Second {
+					if time.Since(value.created) > 1*time.Minute {
 						delete(guid2appNameCache, key)
 						PrintfIfDebug("cleaned cache entry for key %s\n", key)
 					}
