@@ -20,8 +20,9 @@ var (
 	Debug      = false
 	CredhubURL = os.Getenv("CREDHUB_URL")
 
-	Catalog    model.Catalog
-	ListenPort int
+	Catalog          model.Catalog
+	ListenPort       int
+	SyncIntervalSecs int
 
 	ClientId             = os.Getenv("CLIENT_ID")
 	ClientSecret         = os.Getenv("CLIENT_SECRET")
@@ -29,6 +30,7 @@ var (
 	BrokerPassword       = os.Getenv("BROKER_PASSWORD")
 	CatalogDir           = os.Getenv("CATALOG_DIR")
 	ListenPortStr        = os.Getenv("LISTEN_PORT")
+	SyncIntervalSecsStr  = os.Getenv("SYNC_INTERVAL_SECS")
 	CfApiURL             = os.Getenv("CFAPI_URL")
 	UaaApiURL            = os.Getenv("UAA_URL")
 	SkipSslValidationStr = os.Getenv("SKIP_SSL_VALIDATION")
@@ -79,6 +81,16 @@ func EnvironmentComplete() {
 		ListenPort, err = strconv.Atoi(ListenPortStr)
 		if err != nil {
 			fmt.Printf("failed reading envvar LISTEN_PORT, err: %s\n", err)
+			envComplete = false
+		}
+	}
+	if SyncIntervalSecsStr == "" {
+		SyncIntervalSecs = 300
+	} else {
+		var err error
+		SyncIntervalSecs, err = strconv.Atoi(SyncIntervalSecsStr)
+		if err != nil {
+			fmt.Printf("failed reading envvar SYNC_INTERVAL_SECS, err: %s\n", err)
 			envComplete = false
 		}
 	}

@@ -9,6 +9,7 @@ The configuration for the broker consists of the following environment variables
 * **CLIENT_ID** - The uaa client to use for logging in to credhub, should have credhub_admin scope.
 * **CATALOG_DIR** - The directory where to find the cf catalog for the broker, the directory should contain a file called catalog.json.
 * **LISTEN_PORT** - The port that the broker should listen on, default is 8080.
+* **SYNC_INTERVAL_SECS** - The interval the broker will sync the required network policies (according to the service bindings) with the actual network policies, and will create the missing policies, default is 300.
 * **CFAPI_URL** - The URL of the cf api (i.e. https://api.sys.mydomain.com).
 * **SKIP_SSL_VALIDATION** - Skip ssl validation or not, default is false.
 

@@ -14,6 +14,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -30,7 +31,7 @@ var orgCache = make(map[string]*resource.Organization)
 
 type CacheEntry struct {
 	created time.Time
-	guid    string
+	name    string
 }
 
 func InitCFClient() *client.Client {
@@ -104,7 +105,7 @@ func DumpRequest(r *http.Request) {
 		} else {
 			fmt.Println(string(body))
 		}
-		// Restore the io.ReadCloser to it's original state
+		// Restore the io.ReadCloser to it s original state
 		r.Body = io.NopCloser(bytes.NewBuffer(body))
 	}
 }
@@ -141,13 +142,13 @@ func Guid2AppName(guid string) string {
 	}
 	if cacheEntry, found := guid2appNameCache[guid]; found {
 		PrintfIfDebug("cache hit for guid %s\n", guid)
-		return cacheEntry.guid
+		return cacheEntry.name
 	}
 	if app, err := conf.CfClient.Applications.Get(conf.CfCtx, guid); err != nil {
-		fmt.Printf("failed to get app by guid %s, error: %s\n", guid, err)
+		fmt.Printf("failed to get app by name %s, error: %s\n", guid, err)
 		return ""
 	} else {
-		guid2appNameCache[guid] = CacheEntry{created: time.Now(), guid: app.Name}
+		guid2appNameCache[guid] = CacheEntry{created: time.Now(), name: app.Name}
 		return app.Name
 	}
 }
@@ -313,4 +314,155 @@ func Contains(elems []interface{}, v string) bool {
 		}
 	}
 	return false
+}
+
+// SyncLabels2Policies - Find all ServiceInstances and their bound apps, figure out what network policies they represent, check if they exist, and if not, report and create them.
+func SyncLabels2Policies() {
+	fmt.Printf("syncing labels to network policies...\n")
+	startTime := time.Now()
+	var allInstancesWithBinds []model.InstancesWithBinds
+	var totalServiceInstances int
+	var totalBinds int
+
+	//
+	// find all Instances with their binds, both source and destination
+	labelSelector := client.LabelSelector{}
+	labelSelector.Existence(conf.LabelNameType)
+	instanceListOption := client.ServiceInstanceListOptions{ListOptions: &client.ListOptions{LabelSel: labelSelector, PerPage: 5000}}
+	if instances, err := conf.CfClient.ServiceInstances.ListAll(conf.CfCtx, &instanceListOption); err != nil {
+		fmt.Printf("failed to list all service instances with label %s: %s\n", conf.LabelNameType, err)
+	} else {
+		if len(instances) < 1 {
+			PrintfIfDebug("could not find any service instances with label %s\n", conf.LabelNameType)
+		} else {
+			totalServiceInstances = len(instances)
+			for _, instance := range instances {
+				credBindingListOption := client.ServiceCredentialBindingListOptions{ListOptions: &client.ListOptions{PerPage: 1000}, ServiceInstanceGUIDs: client.Filter{Values: []string{instance.GUID}}}
+				if bindings, err := conf.CfClient.ServiceCredentialBindings.ListAll(conf.CfCtx, &credBindingListOption); err != nil {
+					fmt.Printf("failed to list service bindings for service instance %s: %s\n", instance.GUID, err)
+				} else {
+					if len(bindings) < 1 {
+						PrintfIfDebug("could not find any service bindings for service instance %s\n", instance.GUID)
+					} else {
+						var nameOrSource string
+						if instance.Metadata.Labels[conf.LabelNameName] != nil && *instance.Metadata.Labels[conf.LabelNameName] != "" {
+							nameOrSource = *instance.Metadata.Labels[conf.LabelNameName]
+						}
+						if instance.Metadata.Labels[conf.LabelNameSource] != nil && *instance.Metadata.Labels[conf.LabelNameSource] != "" {
+							nameOrSource = *instance.Metadata.Labels[conf.LabelNameSource]
+						}
+						instanceWithBinds := model.InstancesWithBinds{
+							BoundApps:    make([]model.Destination, 0),
+							SrcOrDst:     *instance.Metadata.Labels[conf.LabelNameType],
+							NameOrSource: nameOrSource,
+						}
+						for _, binding := range bindings {
+							totalBinds++
+							if instanceWithBinds.SrcOrDst == conf.LabelValueTypeSrc {
+								// if it is a type=source, we only need the app name
+								instanceWithBinds.BoundApps = append(instanceWithBinds.BoundApps, model.Destination{Id: binding.Relationships.App.Data.GUID})
+							} else {
+								port := 8080
+								if binding.Metadata.Labels[conf.LabelNamePort] != nil && *binding.Metadata.Labels[conf.LabelNamePort] != "" && *binding.Metadata.Labels[conf.LabelNamePort] != "0" {
+									port, _ = strconv.Atoi(*binding.Metadata.Labels[conf.LabelNamePort])
+								}
+								protocol := conf.LabelValueProtocolTCP
+								if binding.Metadata.Labels[conf.LabelNameProtocol] != nil && *binding.Metadata.Labels[conf.LabelNameProtocol] != "" {
+									protocol = *binding.Metadata.Labels[conf.LabelNameProtocol]
+								}
+								instanceWithBinds.BoundApps = append(instanceWithBinds.BoundApps, model.Destination{Id: binding.Relationships.App.Data.GUID, Protocol: protocol, Port: port})
+							}
+						}
+						allInstancesWithBinds = append(allInstancesWithBinds, instanceWithBinds)
+					}
+				}
+			}
+		}
+		PrintfIfDebug("found %d instances with label %s, %d instances have binds:\n", len(instances), conf.LabelNameType, len(allInstancesWithBinds))
+	}
+
+	//
+	// for each type=source instances, find the destination instances that point to this source instance, and generate the required network policies objects
+	var requiredNetworkPolicies []model.NetworkPolicy
+	for _, sourceInstance := range allInstancesWithBinds {
+		if sourceInstance.SrcOrDst == conf.LabelValueTypeSrc {
+			for _, destinationInstance := range allInstancesWithBinds {
+				if destinationInstance.SrcOrDst == conf.LabelValueTypeDest && destinationInstance.NameOrSource == sourceInstance.NameOrSource {
+					for _, sourceApp := range sourceInstance.BoundApps {
+						for _, destinationApp := range destinationInstance.BoundApps {
+							networkPolicy := model.NetworkPolicy{Source: model.Source{Id: sourceApp.Id}, Destination: model.Destination{Id: destinationApp.Id, Port: destinationApp.Port, Protocol: destinationApp.Protocol}}
+							// add the network policy to the list of network policies
+							requiredNetworkPolicies = append(requiredNetworkPolicies, networkPolicy)
+							// check if the network policy already exists, if not, create it
+						}
+					}
+				}
+			}
+		}
+	}
+	npString := ""
+	//for _, np := range requiredNetworkPolicies {
+	//	npString += fmt.Sprintf("%s=>%s:%d(%s)\n", Guid2AppName(np.Source.Id), Guid2AppName(np.Destination.Id), np.Destination.Port, np.Destination.Protocol)
+	//}
+	PrintfIfDebug("found %d network policies that should exist according to labels:\n%v\n", len(requiredNetworkPolicies), npString)
+
+	//
+	// get all existing network policies, then for each network policy object check if a real network policy exists, if not, create it
+	existingNetworkPolicies := getAllNetworkPolicies()
+	policiesFixed := 0
+	for _, requiredNetworkPolicy := range requiredNetworkPolicies {
+		found := false
+		for _, existingNetworkPolicy := range existingNetworkPolicies {
+			if existingNetworkPolicy.Source.Id == requiredNetworkPolicy.Source.Id && existingNetworkPolicy.Destination.Id == requiredNetworkPolicy.Destination.Id && existingNetworkPolicy.Destination.Port == requiredNetworkPolicy.Destination.Port && existingNetworkPolicy.Destination.Protocol == requiredNetworkPolicy.Destination.Protocol {
+				found = true
+				break
+			}
+		}
+		if !found {
+			fmt.Printf("network policy %s=>%s:%d(%s) does not exist, creating it\n", Guid2AppName(requiredNetworkPolicy.Source.Id), Guid2AppName(requiredNetworkPolicy.Destination.Id), requiredNetworkPolicy.Destination.Port, requiredNetworkPolicy.Destination.Protocol)
+			err := Send2PolicyServer(conf.ActionBind, model.NetworkPolicies{Policies: []model.NetworkPolicy{requiredNetworkPolicy}})
+			if err != nil {
+				fmt.Printf("failed to create network policy %s=>%s:%d(%s): %s\n", Guid2AppName(requiredNetworkPolicy.Source.Id), Guid2AppName(requiredNetworkPolicy.Destination.Id), requiredNetworkPolicy.Destination.Port, requiredNetworkPolicy.Destination.Protocol, err)
+			} else {
+				policiesFixed++
+			}
+		}
+	}
+	endTime := time.Now()
+	fmt.Printf("checked %d service instances, checked %d binds, fixed %d missing network policies in %d ms\n", totalServiceInstances, totalBinds, policiesFixed, endTime.Sub(startTime).Milliseconds())
+}
+
+// getAllNetworkPolicies - query the policy server and return all network-policies
+func getAllNetworkPolicies() []model.NetworkPolicy {
+	polServerResponse := &model.PolicyServerGetResponse{}
+	policyServerEndpoint := conf.CfApiURL + "/networking/v0/external/policies"
+	tokenSource, _ := conf.CfClient.CreateOAuth2TokenSource(conf.CfCtx)
+	token, _ := tokenSource.Token()
+	requestHeader := map[string][]string{"Content-Type": {"application/json"}, "Authorization": {token.AccessToken}}
+	requestUrl, _ := url.Parse(policyServerEndpoint)
+	httpRequest := http.Request{Method: http.MethodGet, URL: requestUrl, Header: requestHeader}
+	var httpClient http.Client
+	if conf.SkipSslValidation {
+		// Create new Transport that ignores untrusted CA's
+		clientAllowUntrusted := &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}
+		httpClient = http.Client{Transport: clientAllowUntrusted, Timeout: 30 * time.Second}
+	} else {
+		httpClient = http.Client{Timeout: 30 * time.Second}
+	}
+	response, err := httpClient.Do(&httpRequest)
+	if err != nil || (response != nil && response.StatusCode != http.StatusOK) {
+		if err != nil {
+			fmt.Printf("request to policy server failed: %s \n", err)
+		}
+		if response != nil && response.StatusCode != http.StatusOK {
+			fmt.Printf("request to policy server failed with response code %d\n", response.StatusCode)
+		}
+	} else {
+		defer func() { _ = response.Body.Close() }()
+		bodyBytes, _ := io.ReadAll(response.Body)
+		if err = json.Unmarshal(bodyBytes, polServerResponse); err != nil {
+			fmt.Printf("Failed to parse GET response from Policy Server: %s\n", err)
+		}
+	}
+	return polServerResponse.Policies
 }

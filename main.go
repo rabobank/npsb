@@ -3,11 +3,11 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"os"
-
 	"github.com/rabobank/npsb/conf"
 	"github.com/rabobank/npsb/server"
 	"github.com/rabobank/npsb/util"
+	"os"
+	"time"
 )
 
 func main() {
@@ -35,4 +35,12 @@ func initialize() {
 		fmt.Printf("failed unmarshalling catalog file %s, error: %s\n", catalogFile, err)
 		os.Exit(8)
 	}
+
+	// start the routine that checks consistency between the service instance (labels) and the actual network policies:
+	go func() {
+		for {
+			util.SyncLabels2Policies()
+			time.Sleep(time.Duration(conf.SyncIntervalSecs) * time.Second)
+		}
+	}()
 }
