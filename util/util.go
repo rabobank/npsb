@@ -318,7 +318,7 @@ func Contains(elems []interface{}, v string) bool {
 
 // SyncLabels2Policies - Find all ServiceInstances and their bound apps, figure out what network policies they represent, check if they exist, and if not, report and create them.
 func SyncLabels2Policies() {
-	fmt.Printf("syncing labels to network policies...\n")
+	PrintfIfDebug("syncing labels to network policies...\n")
 	startTime := time.Now()
 	var allInstancesWithBinds []model.InstancesWithBinds
 	var totalServiceInstances int
@@ -336,14 +336,20 @@ func SyncLabels2Policies() {
 			PrintfIfDebug("could not find any service instances with label %s\n", conf.LabelNameType)
 		} else {
 			totalServiceInstances = len(instances)
-			for _, instance := range instances {
-				credBindingListOption := client.ServiceCredentialBindingListOptions{ListOptions: &client.ListOptions{PerPage: 1000}, ServiceInstanceGUIDs: client.Filter{Values: []string{instance.GUID}}}
-				if bindings, err := conf.CfClient.ServiceCredentialBindings.ListAll(conf.CfCtx, &credBindingListOption); err != nil {
-					fmt.Printf("failed to list service bindings for service instance %s: %s\n", instance.GUID, err)
+
+			//
+			// get all "npsb" service bindings (by filtering on the presence of the label npsb.dest.port)
+			labelSelector = client.LabelSelector{}
+			labelSelector.Existence(conf.LabelNamePort)
+			bindListOption := client.ServiceCredentialBindingListOptions{ListOptions: &client.ListOptions{LabelSel: labelSelector, PerPage: 5000}}
+			if bindings, err := conf.CfClient.ServiceCredentialBindings.ListAll(conf.CfCtx, &bindListOption); err != nil {
+				fmt.Printf("failed to list all service bindings with label %s: %s\n", conf.LabelNamePort, err)
+			} else {
+				if len(bindings) < 1 {
+					PrintfIfDebug("could not find any service bindings with label %s\n", conf.LabelNameType)
 				} else {
-					if len(bindings) < 1 {
-						PrintfIfDebug("could not find any service bindings for service instance %s\n", instance.GUID)
-					} else {
+					totalBinds = len(bindings)
+					for _, instance := range instances {
 						var nameOrSource string
 						if instance.Metadata.Labels[conf.LabelNameName] != nil && *instance.Metadata.Labels[conf.LabelNameName] != "" {
 							nameOrSource = *instance.Metadata.Labels[conf.LabelNameName]
@@ -357,20 +363,21 @@ func SyncLabels2Policies() {
 							NameOrSource: nameOrSource,
 						}
 						for _, binding := range bindings {
-							totalBinds++
-							if instanceWithBinds.SrcOrDst == conf.LabelValueTypeSrc {
-								// if it is a type=source, we only need the app name
-								instanceWithBinds.BoundApps = append(instanceWithBinds.BoundApps, model.Destination{Id: binding.Relationships.App.Data.GUID})
-							} else {
-								port := 8080
-								if binding.Metadata.Labels[conf.LabelNamePort] != nil && *binding.Metadata.Labels[conf.LabelNamePort] != "" && *binding.Metadata.Labels[conf.LabelNamePort] != "0" {
-									port, _ = strconv.Atoi(*binding.Metadata.Labels[conf.LabelNamePort])
+							if binding.Relationships.ServiceInstance.Data.GUID == instance.GUID {
+								if instanceWithBinds.SrcOrDst == conf.LabelValueTypeSrc {
+									// if it is a type=source, we only need the app name
+									instanceWithBinds.BoundApps = append(instanceWithBinds.BoundApps, model.Destination{Id: binding.Relationships.App.Data.GUID})
+								} else {
+									port := 8080
+									if binding.Metadata.Labels[conf.LabelNamePort] != nil && *binding.Metadata.Labels[conf.LabelNamePort] != "" && *binding.Metadata.Labels[conf.LabelNamePort] != "0" {
+										port, _ = strconv.Atoi(*binding.Metadata.Labels[conf.LabelNamePort])
+									}
+									protocol := conf.LabelValueProtocolTCP
+									if binding.Metadata.Labels[conf.LabelNameProtocol] != nil && *binding.Metadata.Labels[conf.LabelNameProtocol] != "" {
+										protocol = *binding.Metadata.Labels[conf.LabelNameProtocol]
+									}
+									instanceWithBinds.BoundApps = append(instanceWithBinds.BoundApps, model.Destination{Id: binding.Relationships.App.Data.GUID, Protocol: protocol, Port: port})
 								}
-								protocol := conf.LabelValueProtocolTCP
-								if binding.Metadata.Labels[conf.LabelNameProtocol] != nil && *binding.Metadata.Labels[conf.LabelNameProtocol] != "" {
-									protocol = *binding.Metadata.Labels[conf.LabelNameProtocol]
-								}
-								instanceWithBinds.BoundApps = append(instanceWithBinds.BoundApps, model.Destination{Id: binding.Relationships.App.Data.GUID, Protocol: protocol, Port: port})
 							}
 						}
 						allInstancesWithBinds = append(allInstancesWithBinds, instanceWithBinds)
@@ -379,57 +386,57 @@ func SyncLabels2Policies() {
 			}
 		}
 		PrintfIfDebug("found %d instances with label %s, %d instances have binds:\n", len(instances), conf.LabelNameType, len(allInstancesWithBinds))
-	}
 
-	//
-	// for each type=source instances, find the destination instances that point to this source instance, and generate the required network policies objects
-	var requiredNetworkPolicies []model.NetworkPolicy
-	for _, sourceInstance := range allInstancesWithBinds {
-		if sourceInstance.SrcOrDst == conf.LabelValueTypeSrc {
-			for _, destinationInstance := range allInstancesWithBinds {
-				if destinationInstance.SrcOrDst == conf.LabelValueTypeDest && destinationInstance.NameOrSource == sourceInstance.NameOrSource {
-					for _, sourceApp := range sourceInstance.BoundApps {
-						for _, destinationApp := range destinationInstance.BoundApps {
-							networkPolicy := model.NetworkPolicy{Source: model.Source{Id: sourceApp.Id}, Destination: model.Destination{Id: destinationApp.Id, Port: destinationApp.Port, Protocol: destinationApp.Protocol}}
-							// add the network policy to the list of network policies
-							requiredNetworkPolicies = append(requiredNetworkPolicies, networkPolicy)
-							// check if the network policy already exists, if not, create it
+		//
+		// for each type=source instances, find the destination instances that point to this source instance, and generate the required network policies objects
+		var requiredNetworkPolicies []model.NetworkPolicy
+		for _, sourceInstance := range allInstancesWithBinds {
+			if sourceInstance.SrcOrDst == conf.LabelValueTypeSrc {
+				for _, destinationInstance := range allInstancesWithBinds {
+					if destinationInstance.SrcOrDst == conf.LabelValueTypeDest && destinationInstance.NameOrSource == sourceInstance.NameOrSource {
+						for _, sourceApp := range sourceInstance.BoundApps {
+							for _, destinationApp := range destinationInstance.BoundApps {
+								networkPolicy := model.NetworkPolicy{Source: model.Source{Id: sourceApp.Id}, Destination: model.Destination{Id: destinationApp.Id, Port: destinationApp.Port, Protocol: destinationApp.Protocol}}
+								// add the network policy to the list of network policies
+								requiredNetworkPolicies = append(requiredNetworkPolicies, networkPolicy)
+								// check if the network policy already exists, if not, create it
+							}
 						}
 					}
 				}
 			}
 		}
-	}
-	npString := ""
-	//for _, np := range requiredNetworkPolicies {
-	//	npString += fmt.Sprintf("%s=>%s:%d(%s)\n", Guid2AppName(np.Source.Id), Guid2AppName(np.Destination.Id), np.Destination.Port, np.Destination.Protocol)
-	//}
-	PrintfIfDebug("found %d network policies that should exist according to labels:\n%v\n", len(requiredNetworkPolicies), npString)
+		npString := ""
+		//for _, np := range requiredNetworkPolicies {
+		//	npString += fmt.Sprintf("%s=>%s:%d(%s)\n", Guid2AppName(np.Source.Id), Guid2AppName(np.Destination.Id), np.Destination.Port, np.Destination.Protocol)
+		//}
+		PrintfIfDebug("found %d network policies that should exist according to labels:\n%v\n", len(requiredNetworkPolicies), npString)
 
-	//
-	// get all existing network policies, then for each network policy object check if a real network policy exists, if not, create it
-	existingNetworkPolicies := getAllNetworkPolicies()
-	policiesFixed := 0
-	for _, requiredNetworkPolicy := range requiredNetworkPolicies {
-		found := false
-		for _, existingNetworkPolicy := range existingNetworkPolicies {
-			if existingNetworkPolicy.Source.Id == requiredNetworkPolicy.Source.Id && existingNetworkPolicy.Destination.Id == requiredNetworkPolicy.Destination.Id && existingNetworkPolicy.Destination.Port == requiredNetworkPolicy.Destination.Port && existingNetworkPolicy.Destination.Protocol == requiredNetworkPolicy.Destination.Protocol {
-				found = true
-				break
+		//
+		// get all existing network policies, then for each network policy object check if a real network policy exists, if not, create it
+		existingNetworkPolicies := getAllNetworkPolicies()
+		policiesFixed := 0
+		for _, requiredNetworkPolicy := range requiredNetworkPolicies {
+			found := false
+			for _, existingNetworkPolicy := range existingNetworkPolicies {
+				if existingNetworkPolicy.Source.Id == requiredNetworkPolicy.Source.Id && existingNetworkPolicy.Destination.Id == requiredNetworkPolicy.Destination.Id && existingNetworkPolicy.Destination.Port == requiredNetworkPolicy.Destination.Port && existingNetworkPolicy.Destination.Protocol == requiredNetworkPolicy.Destination.Protocol {
+					found = true
+					break
+				}
+			}
+			if !found {
+				fmt.Printf("network policy %s=>%s:%d(%s) does not exist, creating it\n", Guid2AppName(requiredNetworkPolicy.Source.Id), Guid2AppName(requiredNetworkPolicy.Destination.Id), requiredNetworkPolicy.Destination.Port, requiredNetworkPolicy.Destination.Protocol)
+				err := Send2PolicyServer(conf.ActionBind, model.NetworkPolicies{Policies: []model.NetworkPolicy{requiredNetworkPolicy}})
+				if err != nil {
+					fmt.Printf("failed to create network policy %s=>%s:%d(%s): %s\n", Guid2AppName(requiredNetworkPolicy.Source.Id), Guid2AppName(requiredNetworkPolicy.Destination.Id), requiredNetworkPolicy.Destination.Port, requiredNetworkPolicy.Destination.Protocol, err)
+				} else {
+					policiesFixed++
+				}
 			}
 		}
-		if !found {
-			fmt.Printf("network policy %s=>%s:%d(%s) does not exist, creating it\n", Guid2AppName(requiredNetworkPolicy.Source.Id), Guid2AppName(requiredNetworkPolicy.Destination.Id), requiredNetworkPolicy.Destination.Port, requiredNetworkPolicy.Destination.Protocol)
-			err := Send2PolicyServer(conf.ActionBind, model.NetworkPolicies{Policies: []model.NetworkPolicy{requiredNetworkPolicy}})
-			if err != nil {
-				fmt.Printf("failed to create network policy %s=>%s:%d(%s): %s\n", Guid2AppName(requiredNetworkPolicy.Source.Id), Guid2AppName(requiredNetworkPolicy.Destination.Id), requiredNetworkPolicy.Destination.Port, requiredNetworkPolicy.Destination.Protocol, err)
-			} else {
-				policiesFixed++
-			}
-		}
+		endTime := time.Now()
+		fmt.Printf("checked %d service instances, checked %d binds, fixed %d missing network policies in %d ms\n", totalServiceInstances, totalBinds, policiesFixed, endTime.Sub(startTime).Milliseconds())
 	}
-	endTime := time.Now()
-	fmt.Printf("checked %d service instances, checked %d binds, fixed %d missing network policies in %d ms\n", totalServiceInstances, totalBinds, policiesFixed, endTime.Sub(startTime).Milliseconds())
 }
 
 // getAllNetworkPolicies - query the policy server and return all network-policies
@@ -464,5 +471,6 @@ func getAllNetworkPolicies() []model.NetworkPolicy {
 			fmt.Printf("Failed to parse GET response from Policy Server: %s\n", err)
 		}
 	}
+	PrintfIfDebug("found %d existing network policies\n", len(polServerResponse.Policies))
 	return polServerResponse.Policies
 }
