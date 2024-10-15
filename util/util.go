@@ -34,7 +34,7 @@ type CacheEntry struct {
 	name    string
 }
 
-func InitCFClient() *client.Client {
+func InitCFClient() {
 	var err error
 	if conf.CfConfig, err = config.New(conf.CfApiURL, config.ClientCredentials(conf.ClientId, conf.ClientSecret), config.SkipTLSValidation()); err != nil {
 		log.Fatalf("failed to create new config: %s", err)
@@ -53,7 +53,7 @@ func InitCFClient() *client.Client {
 			}
 		}()
 	}
-	return conf.CfClient
+	return
 }
 
 func WriteHttpResponse(w http.ResponseWriter, code int, object interface{}) {
