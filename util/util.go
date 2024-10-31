@@ -36,7 +36,7 @@ type CacheEntry struct {
 
 func InitCFClient() {
 	var err error
-	if conf.CfConfig, err = config.New(conf.CfApiURL, config.ClientCredentials(conf.ClientId, conf.ClientSecret), config.SkipTLSValidation(), config.UserAgent(fmt.Sprintf("npsb %s", conf.GetVersion()))); err != nil {
+	if conf.CfConfig, err = config.New(conf.CfApiURL, config.ClientCredentials(conf.ClientId, conf.ClientSecret), config.SkipTLSValidation(), config.UserAgent(fmt.Sprintf("npsb/%s", conf.VERSION))); err != nil {
 		log.Fatalf("failed to create new config: %s", err)
 	}
 	if conf.CfClient, err = client.New(conf.CfConfig); err != nil {
