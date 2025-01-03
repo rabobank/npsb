@@ -238,16 +238,18 @@ func Send2PolicyServer(action string, policies model.NetworkPolicies) error {
 				response, err := httpClient.Do(request)
 				endTime := time.Now().UnixNano() / int64(time.Millisecond)
 				if err != nil || response.StatusCode != http.StatusOK {
-					if response.StatusCode != http.StatusOK {
-						bodyBytes, _ := io.ReadAll(response.Body)
-						return fmt.Errorf("The HTTP request failed with response code %d: %s\n", response.StatusCode, bodyBytes)
+					if response != nil {
+						if response.StatusCode != http.StatusOK {
+							bodyBytes, _ := io.ReadAll(response.Body)
+							return fmt.Errorf("The HTTP request failed with response code %d: %s\n", response.StatusCode, bodyBytes)
+						}
 					} else {
 						return fmt.Errorf("The HTTP request failed with error: %s\n", err)
 					}
 				} else {
-					defer func() { _ = response.Body.Close() }()
 					bodyBytes, _ := io.ReadAll(response.Body)
 					bodyString := string(bodyBytes)
+					_ = response.Body.Close()
 					fmt.Printf("response in %d ms from %v: Status code: %v: %v\n", endTime-startTime, policyServerEndpoint, response.Status, bodyString)
 				}
 			}
@@ -354,8 +356,8 @@ func SyncLabels2Policies() {
 						if instance.Metadata.Labels[conf.LabelNameName] != nil && *instance.Metadata.Labels[conf.LabelNameName] != "" {
 							nameOrSource = *instance.Metadata.Labels[conf.LabelNameName]
 						}
-						if instance.Metadata.Labels[conf.LabelNameSource] != nil && *instance.Metadata.Labels[conf.LabelNameSource] != "" {
-							nameOrSource = *instance.Metadata.Labels[conf.LabelNameSource]
+						if instance.Metadata.Labels[conf.LabelNameSourceName] != nil && *instance.Metadata.Labels[conf.LabelNameSourceName] != "" {
+							nameOrSource = *instance.Metadata.Labels[conf.LabelNameSourceName]
 						}
 						instanceWithBinds := model.InstancesWithBinds{
 							BoundApps:    make([]model.Destination, 0),

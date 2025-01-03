@@ -39,8 +39,9 @@ func CreateOrUpdateServiceInstance(w http.ResponseWriter, r *http.Request) {
 	labels := make(map[string]*string)
 	labels[conf.LabelNameType] = &serviceInstanceParms.Type
 	labels[conf.LabelNameName] = &serviceInstanceParms.Name
-	labels[conf.LabelNameScope] = &serviceInstanceParms.Scope
-	labels[conf.LabelNameSource] = &serviceInstanceParms.Source
+	labels[conf.LabelNameSourceName] = &serviceInstanceParms.SourceName
+	labels[conf.LabelNameSourceSpace] = &serviceInstanceParms.SourceSpace
+	labels[conf.LabelNameSourceOrg] = &serviceInstanceParms.SourceOrg
 	annotations := make(map[string]*string)
 	annotations[conf.AnnotationNameDesc] = &serviceInstanceParms.Description
 
@@ -97,30 +98,39 @@ func validateInstanceParameters(serviceInstance model.ServiceInstance) (serviceI
 		if len(serviceInstanceParms.Description) > 128 {
 			return serviceInstanceParms, fmt.Errorf("parameter \"%s\" is invalid, maximum length is 128, you have %d", conf.AnnotationNameDesc, len(serviceInstanceParms.Description))
 		}
-		if serviceInstanceParms.Scope == "" {
-			return serviceInstanceParms, fmt.Errorf("parameter \"%s\" is missing", conf.LabelNameScope)
-		}
-		if serviceInstanceParms.Scope == "" || (serviceInstanceParms.Scope != conf.LabelValueScopeGlobal && serviceInstanceParms.Scope != conf.LabelValueScopeLocal) {
-			return serviceInstanceParms, fmt.Errorf("parameter \"%s\" is missing or invalid, should be \"%s\" or \"%s\"", conf.LabelNameScope, conf.LabelValueScopeGlobal, conf.LabelValueScopeLocal)
-		}
-		if instanceWithNameExists(serviceInstanceParms.Name) {
+		if instanceWithNameExists(serviceInstanceParms.Name, serviceInstance) {
 			return serviceInstanceParms, fmt.Errorf("a network-policies service with label \"%s\"=\"%s\" is already taken", conf.LabelNameName, serviceInstanceParms.Name)
 		}
 	}
 
 	if serviceInstanceParms.Type == "destination" {
-		if serviceInstanceParms.Source == "" {
-			return serviceInstanceParms, fmt.Errorf("parameter \"%s\" is missing", conf.LabelNameSource)
+		if serviceInstanceParms.SourceName == "" {
+			return serviceInstanceParms, fmt.Errorf("parameter \"%s\" is missing", conf.LabelNameSourceName)
 		}
-		if !parameterValueRegex.MatchString(serviceInstanceParms.Source) {
-			return serviceInstanceParms, fmt.Errorf("parameter \"%s\" is invalid, should match regex %s", conf.LabelNameSource, parameterValueRegex.String())
+		if !parameterValueRegex.MatchString(serviceInstanceParms.SourceName) {
+			return serviceInstanceParms, fmt.Errorf("parameter \"%s\" is invalid, should match regex %s", conf.LabelNameSourceName, parameterValueRegex.String())
+		}
+		if serviceInstanceParms.SourceSpace == "" {
+			return serviceInstanceParms, fmt.Errorf("parameter \"%s\" is missing", conf.LabelNameSourceSpace)
+		}
+		if !parameterValueRegex.MatchString(serviceInstanceParms.SourceSpace) {
+			return serviceInstanceParms, fmt.Errorf("parameter \"%s\" is invalid, should match regex %s", conf.LabelNameSourceSpace, parameterValueRegex.String())
+		}
+		if serviceInstanceParms.SourceOrg == "" {
+			return serviceInstanceParms, fmt.Errorf("parameter \"%s\" is missing", conf.LabelNameSourceOrg)
+		}
+		if !parameterValueRegex.MatchString(serviceInstanceParms.SourceOrg) {
+			return serviceInstanceParms, fmt.Errorf("parameter \"%s\" is invalid, should match regex %s", conf.LabelNameSourceOrg, parameterValueRegex.String())
+		}
+		if serviceInstanceParms.SourceSpace == serviceInstance.Context.SpaceName && serviceInstanceParms.SourceOrg == serviceInstance.Context.OrganizationName {
+			return serviceInstanceParms, fmt.Errorf("you cannot use a source that is in the same org/space (%s/%s) as the target, for those cases use the standard \"cf add-network-policy\" commands", serviceInstanceParms.SourceOrg, serviceInstanceParms.SourceSpace)
 		}
 	}
 	return serviceInstanceParms, nil
 }
 
-// instanceWithNameExists checks if a service instance with the given name (and the network policies service name) already exists. If errors occur, we return true so the caller fails
-func instanceWithNameExists(srcName string) bool {
+// instanceWithNameExists checks if a service instance with the given "Name" label (and the network policies service name) in the current space already exists. If errors occur, we return true so the caller fails
+func instanceWithNameExists(instanceLabelName string, serviceInstance model.ServiceInstance) bool {
 	// get the plan first
 	var servicePlanGuid string
 	serviceName := conf.Catalog.Services[0].Name
@@ -137,18 +147,18 @@ func instanceWithNameExists(srcName string) bool {
 		servicePlanGuid = plans[0].GUID
 	}
 
-	labelSelector := client.LabelSelector{}
-	labelSelector.EqualTo(conf.LabelNameName, srcName)
-	instanceListOptions := client.ServiceInstanceListOptions{ServicePlanGUIDs: client.Filter{Values: []string{servicePlanGuid}}, ListOptions: &client.ListOptions{LabelSel: labelSelector}}
-	if instances, err := conf.CfClient.ServiceInstances.ListAll(conf.CfCtx, &instanceListOptions); err != nil {
-		fmt.Printf("failed to list service instances with label %s=%s: %s\n", conf.LabelNameName, srcName, err)
+	instanceListOptions := client.ServiceInstanceListOptions{ServicePlanGUIDs: client.Filter{Values: []string{servicePlanGuid}}, SpaceGUIDs: client.Filter{Values: []string{serviceInstance.Context.SpaceGuid}}}
+	if spaceInstances, err := conf.CfClient.ServiceInstances.ListAll(conf.CfCtx, &instanceListOptions); err != nil {
+		fmt.Printf("failed to list service instances in space %s: %s\n", serviceInstance.Context.SpaceName, err)
 		return false
 	} else {
-		if len(instances) > 0 {
-			for _, instance := range instances {
-				fmt.Printf("a service instance with label %s=%s already exists with name=%s, instance_guid=%s, space_guid=%s\n", conf.LabelNameName, srcName, instance.Name, instance.GUID, instance.Relationships.Space.Data.GUID)
+		if len(spaceInstances) > 0 {
+			for _, spaceInstance := range spaceInstances {
+				if *spaceInstance.Metadata.Labels[conf.LabelNameName] == instanceLabelName {
+					fmt.Printf("a service instance with label %s=%s already exists with name=%s, instance_guid=%s\n", conf.LabelNameName, instanceLabelName, spaceInstance.Name, spaceInstance.GUID)
+					return true
+				}
 			}
-			return true
 		}
 	}
 	return false

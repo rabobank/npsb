@@ -15,7 +15,7 @@ import (
 	"github.com/rabobank/npsb/util"
 )
 
-const IdentityHeader = "X-Broker-Api-Originating-Identity"
+//const IdentityHeader = "X-Broker-Api-Originating-Identity"
 
 func BasicAuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

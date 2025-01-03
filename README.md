@@ -17,8 +17,9 @@ Instance create parameters:
 * **type** - This can be either "source" or "destination", indicating the "direction" of the policy. This is a required parameter.
 * **name** - The logical name to assign to the instance, only applicable for source instance. This name can be queried later to get a list of all source policies that can be used by type=destination instances. This is a required parameter for type=source instances.
 * **description** - The description of the instance, only applicable for source instances. This description is added as an annotation to the service instance. This is an optional parameter for type=source instances.
-* **scope** - Can be either local or global. Local scope means only visible to the org/space where the policy is created, global means visible to all orgs/spaces. This is a required parameter for type=source instances.
-* **source** - The name of the source service instance that should be linked to this instance, only applicable for destination instances. This is a required parameter. This is a required parameter for type=destination instances.
+* **sourceName** - Refers to a source service instance with that "name" label that should be linked to this instance, only applicable for destination instances. This is a required parameter for type=destination instances.
+* **sourceSpace** - Refers to name of the space of a source service instance that should be linked to this instance, only applicable for destination instances. This is a required parameter for type=destination instances.
+* **sourceOrg** - Refers to name of the org of a source service instance that should be linked to this instance, only applicable for destination instances. This is a required parameter for type=destination instances.
 
 Instance bind parameters:
 * **port** - The port to use for the network policy (i.e. the port the application listens on). This is an optional parameter for type=destination, default is 8080.
@@ -66,9 +67,9 @@ Then we can create network policies for each of these service bindings, where:
 * port is optional, can be derived from the service binding of the type=destination service bindings (metadata.labels.npsb.dest.port), default is 8080
 
 ### Service bind on type=destination instances
-When doing a service bind on a type=destination service instance, the broker should first get the service instance that has the label name=<srcname> where <srcname> comes from the source label of the current destination binding.
+When doing a service bind on a type=destination service instance, the broker should first get the service instance that has the label npsb.source.name=<srcname> where <srcname> comes from the source label of the current destination binding, same goes for space and org.
 ````
-GET /v3/service_instances?label_selector=npsb.type=source,npsb.source.name=srcapp1
+GET /v3/service_instances?label_selector=npsb.type=source,npsb.source.name=srcapp1&space_guids=<spaceGuid)
 ````
 Then we should get a list of service bindings for this service instance (guid1 is the guid of the only type=source service instance that was found with the previous query):
 ````
