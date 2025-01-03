@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/cloudfoundry/go-cfclient/v3/client"
 	"github.com/cloudfoundry/go-cfclient/v3/resource"
@@ -64,7 +65,7 @@ func CreateOrUpdateServiceInstance(w http.ResponseWriter, r *http.Request) {
 
 	// If we respond with StatusAccepted, the CC will poll the last_operation endpoint, but the above routine cannot update the instance, it gets (CF-AsyncServiceInstanceOperationInProgress|60016):
 	// So, we are cheating here and respond with StatusOk, and the CC will not poll the last_operation endpoint, and we take the small risk that the instance is not (properly) updated by the above routine.
-	util.WriteHttpResponse(w, http.StatusCreated, model.CreateServiceInstanceResponse{})
+	util.WriteHttpResponse(w, http.StatusCreated, model.CreateServiceInstanceResponse{ServiceId: serviceInstance.ServiceId, PlanId: serviceInstance.PlanId})
 	return
 }
 
@@ -75,28 +76,37 @@ func DeleteServiceInstance(w http.ResponseWriter, r *http.Request) {
 
 func validateInstanceParameters(serviceInstance model.ServiceInstance) (serviceInstanceParms model.ServiceInstanceParameters, err error) {
 	parameterValueRegex := regexp.MustCompile("^[a-zA-Z0-9._-]{1,64}$")
+	const (
+		ParmType     = "type"
+		ParmName     = "name"
+		ParmDesc     = "description"
+		ParmSrcName  = "sourceName"
+		ParmSrcSpace = "sourceSpace"
+		ParmSrcOrg   = "sourceOrg"
+	)
+
 	if serviceInstance.Parameters == nil {
 		return serviceInstanceParms, fmt.Errorf("parameters are missing")
 	}
 	body, _ := json.Marshal(serviceInstance.Parameters)
-	if err := json.Unmarshal(body, &serviceInstanceParms); err != nil {
+	if err = json.Unmarshal(body, &serviceInstanceParms); err != nil {
 		return serviceInstanceParms, fmt.Errorf("failed to unmarshal parameters: %s", err)
 	}
 	if serviceInstanceParms.Type == "" {
-		return serviceInstanceParms, fmt.Errorf("parameter \"%s\" is missing", conf.LabelNameType)
+		return serviceInstanceParms, fmt.Errorf("parameter \"%s\" is missing", ParmType)
 	}
 	if serviceInstanceParms.Type != conf.LabelValueTypeSrc && serviceInstanceParms.Type != conf.LabelValueTypeDest {
-		return serviceInstanceParms, fmt.Errorf("parameter \"%s\" is invalid, should be \"%s\" or \"%s\"", conf.LabelNameType, conf.LabelValueTypeSrc, conf.LabelValueTypeDest)
+		return serviceInstanceParms, fmt.Errorf("parameter \"%s\" is invalid, should be \"%s\" or \"%s\"", ParmType, conf.LabelValueTypeSrc, conf.LabelValueTypeDest)
 	}
 	if serviceInstanceParms.Type == "source" {
 		if serviceInstanceParms.Name == "" {
-			return serviceInstanceParms, fmt.Errorf("parameter \"%s\" is missing", conf.LabelNameName)
+			return serviceInstanceParms, fmt.Errorf("parameter \"%s\" is missing", ParmName)
 		}
 		if !parameterValueRegex.MatchString(serviceInstanceParms.Name) {
-			return serviceInstanceParms, fmt.Errorf("parameter \"%s\" is invalid, should match regex %s", conf.LabelNameName, parameterValueRegex.String())
+			return serviceInstanceParms, fmt.Errorf("parameter \"%s\" is invalid, should match regex %s", ParmName, parameterValueRegex.String())
 		}
 		if len(serviceInstanceParms.Description) > 128 {
-			return serviceInstanceParms, fmt.Errorf("parameter \"%s\" is invalid, maximum length is 128, you have %d", conf.AnnotationNameDesc, len(serviceInstanceParms.Description))
+			return serviceInstanceParms, fmt.Errorf("parameter \"%s\" is invalid, maximum length is 128, you have %d", ParmDesc, len(serviceInstanceParms.Description))
 		}
 		if instanceWithNameExists(serviceInstanceParms.Name, serviceInstance) {
 			return serviceInstanceParms, fmt.Errorf("a network-policies service with label \"%s\"=\"%s\" is already taken", conf.LabelNameName, serviceInstanceParms.Name)
@@ -105,25 +115,42 @@ func validateInstanceParameters(serviceInstance model.ServiceInstance) (serviceI
 
 	if serviceInstanceParms.Type == "destination" {
 		if serviceInstanceParms.SourceName == "" {
-			return serviceInstanceParms, fmt.Errorf("parameter \"%s\" is missing", conf.LabelNameSourceName)
+			return serviceInstanceParms, fmt.Errorf("parameter \"%s\" is missing", ParmSrcName)
 		}
 		if !parameterValueRegex.MatchString(serviceInstanceParms.SourceName) {
-			return serviceInstanceParms, fmt.Errorf("parameter \"%s\" is invalid, should match regex %s", conf.LabelNameSourceName, parameterValueRegex.String())
+			return serviceInstanceParms, fmt.Errorf("parameter \"%s\" is invalid, should match regex %s", ParmSrcName, parameterValueRegex.String())
 		}
 		if serviceInstanceParms.SourceSpace == "" {
-			return serviceInstanceParms, fmt.Errorf("parameter \"%s\" is missing", conf.LabelNameSourceSpace)
+			return serviceInstanceParms, fmt.Errorf("parameter \"%s\" is missing", ParmSrcSpace)
 		}
 		if !parameterValueRegex.MatchString(serviceInstanceParms.SourceSpace) {
-			return serviceInstanceParms, fmt.Errorf("parameter \"%s\" is invalid, should match regex %s", conf.LabelNameSourceSpace, parameterValueRegex.String())
+			return serviceInstanceParms, fmt.Errorf("parameter \"%s\" is invalid, should match regex %s", ParmSrcSpace, parameterValueRegex.String())
 		}
 		if serviceInstanceParms.SourceOrg == "" {
-			return serviceInstanceParms, fmt.Errorf("parameter \"%s\" is missing", conf.LabelNameSourceOrg)
+			return serviceInstanceParms, fmt.Errorf("parameter \"%s\" is missing", ParmSrcOrg)
 		}
 		if !parameterValueRegex.MatchString(serviceInstanceParms.SourceOrg) {
-			return serviceInstanceParms, fmt.Errorf("parameter \"%s\" is invalid, should match regex %s", conf.LabelNameSourceOrg, parameterValueRegex.String())
+			return serviceInstanceParms, fmt.Errorf("parameter \"%s\" is invalid, should match regex %s", ParmSrcOrg, parameterValueRegex.String())
 		}
 		if serviceInstanceParms.SourceSpace == serviceInstance.Context.SpaceName && serviceInstanceParms.SourceOrg == serviceInstance.Context.OrganizationName {
 			return serviceInstanceParms, fmt.Errorf("you cannot use a source that is in the same org/space (%s/%s) as the target, for those cases use the standard \"cf add-network-policy\" commands", serviceInstanceParms.SourceOrg, serviceInstanceParms.SourceSpace)
+		}
+
+		// check if the source org/space exists:
+		var orgGuid string
+		orgListOptions := client.OrganizationListOptions{Names: client.Filter{Values: []string{serviceInstanceParms.SourceOrg}}}
+		if org, err := conf.CfClient.Organizations.Single(conf.CfCtx, &orgListOptions); err != nil {
+			errorMsg := fmt.Sprintf("failed to get org with name %s: %s\n", serviceInstanceParms.SourceOrg, err)
+			fmt.Println(errorMsg)
+			return serviceInstanceParms, errors.New(errorMsg)
+		} else {
+			orgGuid = org.GUID
+		}
+		spaceListOptions := client.SpaceListOptions{Names: client.Filter{Values: []string{serviceInstanceParms.SourceSpace}}, OrganizationGUIDs: client.Filter{Values: []string{orgGuid}}}
+		if _, err = conf.CfClient.Spaces.Single(conf.CfCtx, &spaceListOptions); err != nil {
+			errorMsg := fmt.Sprintf("failed to get space with name %s in org with name %s: %s\n", serviceInstanceParms.SourceSpace, serviceInstanceParms.SourceOrg, err)
+			fmt.Println(errorMsg)
+			return serviceInstanceParms, errors.New(errorMsg)
 		}
 	}
 	return serviceInstanceParms, nil
@@ -154,7 +181,7 @@ func instanceWithNameExists(instanceLabelName string, serviceInstance model.Serv
 	} else {
 		if len(spaceInstances) > 0 {
 			for _, spaceInstance := range spaceInstances {
-				if *spaceInstance.Metadata.Labels[conf.LabelNameName] == instanceLabelName {
+				if spaceInstance.Metadata.Labels[conf.LabelNameName] != nil && *spaceInstance.Metadata.Labels[conf.LabelNameName] == instanceLabelName {
 					fmt.Printf("a service instance with label %s=%s already exists with name=%s, instance_guid=%s\n", conf.LabelNameName, instanceLabelName, spaceInstance.Name, spaceInstance.GUID)
 					return true
 				}

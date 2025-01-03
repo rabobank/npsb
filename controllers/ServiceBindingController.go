@@ -55,10 +55,10 @@ func CreateServiceBinding(w http.ResponseWriter, r *http.Request) {
 			util.WriteHttpResponse(w, http.StatusBadRequest, model.BrokerError{Error: "FAILED", Description: fmt.Sprintf("service instance (metadata.labels) for id %s not found", serviceBinding.ServiceInstanceId), InstanceUsable: false, UpdateRepeatable: false})
 		} else {
 			port, _ := strconv.Atoi(portStr)
-			if _, err = createOrDeletePolicies(conf.ActionBind, serviceInstance, serviceBinding.AppGuid, port, serviceBindingParms.Protocol); err != nil {
+			if numCreated, err := createOrDeletePolicies(conf.ActionBind, serviceInstance, serviceBinding.AppGuid, port, serviceBindingParms.Protocol); err != nil {
 				util.WriteHttpResponse(w, http.StatusBadRequest, model.BrokerError{Error: "FAILED", Description: fmt.Sprintf("failed to create policies for service instance %s: %s", serviceBinding.ServiceInstanceId, err), InstanceUsable: false, UpdateRepeatable: false})
 			} else {
-				util.WriteHttpResponse(w, http.StatusCreated, model.CreateServiceBindingResponse{})
+				util.WriteHttpResponse(w, http.StatusCreated, model.CreateServiceBindingResponse{Result: fmt.Sprintf("%d policies created successfully", numCreated)})
 			}
 		}
 	}

@@ -36,7 +36,7 @@ func GetSources(w http.ResponseWriter, r *http.Request) {
 						sourcesList.SourcesResponses = append(sourcesList.SourcesResponses, model.SourceResponse{Source: *name, Org: org.Name, Space: space.Name, Description: *desc})
 					}
 				}
-				util.PrintfIfDebug("found %d global sources\n", len(sourcesList.SourcesResponses))
+				util.PrintfIfDebug("found %d sources\n", len(sourcesList.SourcesResponses))
 			}
 		}
 
