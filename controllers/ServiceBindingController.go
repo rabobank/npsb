@@ -88,10 +88,10 @@ func DeleteServiceBinding(w http.ResponseWriter, r *http.Request) {
 				if serviceCredentialBinding.Metadata.Labels[conf.LabelNameProtocol] != nil && *serviceCredentialBinding.Metadata.Labels[conf.LabelNameProtocol] != "" {
 					protocol = *serviceCredentialBinding.Metadata.Labels[conf.LabelNameProtocol]
 				}
-				if _, err = createOrDeletePolicies(conf.ActionUnbind, serviceInstance, serviceCredentialBinding.Relationships.App.Data.GUID, port, protocol); err != nil {
+				if numDeleted, err := createOrDeletePolicies(conf.ActionUnbind, serviceInstance, serviceCredentialBinding.Relationships.App.Data.GUID, port, protocol); err != nil {
 					util.WriteHttpResponse(w, http.StatusBadRequest, model.BrokerError{Error: "FAILED", Description: fmt.Sprintf("failed to create policies for service instance %s: %s", serviceCredentialBinding.Relationships.ServiceInstance.Data.GUID, err), InstanceUsable: false, UpdateRepeatable: false})
 				} else {
-					util.WriteHttpResponse(w, http.StatusOK, model.DeleteServiceBindingResponse{})
+					util.WriteHttpResponse(w, http.StatusOK, model.DeleteServiceBindingResponse{Result: fmt.Sprintf("%d policies deleted successfully", numDeleted)})
 				}
 			}
 		}

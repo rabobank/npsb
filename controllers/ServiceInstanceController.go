@@ -39,10 +39,13 @@ func CreateOrUpdateServiceInstance(w http.ResponseWriter, r *http.Request) {
 
 	labels := make(map[string]*string)
 	labels[conf.LabelNameType] = &serviceInstanceParms.Type
-	labels[conf.LabelNameName] = &serviceInstanceParms.Name
-	labels[conf.LabelNameSourceName] = &serviceInstanceParms.SourceName
-	labels[conf.LabelNameSourceSpace] = &serviceInstanceParms.SourceSpace
-	labels[conf.LabelNameSourceOrg] = &serviceInstanceParms.SourceOrg
+	if serviceInstanceParms.Type == conf.LabelValueTypeSrc {
+		labels[conf.LabelNameName] = &serviceInstanceParms.Name
+	} else {
+		labels[conf.LabelNameSourceName] = &serviceInstanceParms.SourceName
+		labels[conf.LabelNameSourceSpace] = &serviceInstanceParms.SourceSpace
+		labels[conf.LabelNameSourceOrg] = &serviceInstanceParms.SourceOrg
+	}
 	annotations := make(map[string]*string)
 	annotations[conf.AnnotationNameDesc] = &serviceInstanceParms.Description
 

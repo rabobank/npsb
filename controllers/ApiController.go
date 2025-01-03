@@ -14,13 +14,13 @@ import (
 )
 
 func GetSources(w http.ResponseWriter, r *http.Request) {
-	if isValid, _, requestObject := ValidateRequest(w, r); isValid {
+	if isValid, _, _ := ValidateRequest(w, r); isValid {
 		sourcesList := model.SourcesResponseList{}
 		// find all service instances with a "name" label
-		labelSelectorGlobal := client.LabelSelector{}
-		labelSelectorGlobal.Existence(conf.LabelNameName)
-		instanceListOptionGlobal := client.ServiceInstanceListOptions{ListOptions: &client.ListOptions{LabelSel: labelSelectorGlobal, PerPage: 5000}}
-		if instances, err := conf.CfClient.ServiceInstances.ListAll(conf.CfCtx, &instanceListOptionGlobal); err != nil {
+		labelSelector := client.LabelSelector{}
+		labelSelector.EqualTo(conf.LabelNameType, conf.LabelValueTypeSrc)
+		instanceListOption := client.ServiceInstanceListOptions{ListOptions: &client.ListOptions{LabelSel: labelSelector, PerPage: 5000}}
+		if instances, err := conf.CfClient.ServiceInstances.ListAll(conf.CfCtx, &instanceListOption); err != nil {
 			fmt.Printf("failed to list service instances with label %s : %s\n", conf.LabelNameName, err)
 			util.WriteHttpResponse(w, http.StatusInternalServerError, "failed to list sources, internal error")
 			return
@@ -40,29 +40,6 @@ func GetSources(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		// find all service instances with a "name" label and a "scope=local" in the current space
-		labelSelectorLocal := client.LabelSelector{}
-		labelSelectorLocal.Existence(conf.LabelNameName)
-		instanceListOptionLocal := client.ServiceInstanceListOptions{ListOptions: &client.ListOptions{LabelSel: labelSelectorLocal}, SpaceGUIDs: client.Filter{Values: []string{requestObject.SpaceGUID}}}
-		if instances, err := conf.CfClient.ServiceInstances.ListAll(conf.CfCtx, &instanceListOptionLocal); err != nil {
-			fmt.Printf("failed to list service instances with label %s: %s\n", conf.LabelNameName, err)
-			util.WriteHttpResponse(w, http.StatusInternalServerError, "failed to list sources, internal error")
-			return
-		} else {
-			if len(instances) == 0 {
-				util.PrintfIfDebug("could not find any service instances with label %s in space %s\n", conf.LabelNameName, requestObject.SpaceGUID)
-			} else {
-				for _, instance := range instances {
-					if name, ok := instance.Metadata.Labels[conf.LabelNameName]; ok {
-						space := util.GetSpaceByGuidCached(instance.Relationships.Space.Data.GUID)
-						org := util.GetOrgByGuidCached(space.Relationships.Organization.Data.GUID)
-						desc := instance.Metadata.Annotations[conf.AnnotationNameDesc]
-						sourcesList.SourcesResponses = append(sourcesList.SourcesResponses, model.SourceResponse{Source: *name, Org: org.Name, Space: space.Name, Description: *desc})
-					}
-				}
-				util.PrintfIfDebug("found %d local sources\n", len(sourcesList.SourcesResponses))
-			}
-		}
 		if len(sourcesList.SourcesResponses) > 0 {
 			util.WriteHttpResponse(w, http.StatusOK, sourcesList)
 		} else {
